@@ -1,0 +1,269 @@
+MENGRAM INSTALL GUIDE — AGENT INSTRUCTIONS
+===========================================
+
+AUDIENCE: This document is written for an LLM coding agent (Claude, GPT, Gemini)
+that has shell + file-edit + web-fetch capabilities. The agent is acting on
+behalf of a human user who pasted a single install prompt into their AI tool
+(Claude Desktop, Cursor, Claude Code, Codex, Windsurf, etc).
+
+YOUR JOB: Install Mengram (a memory layer for AI agents), authenticate the user,
+configure the MCP server in the host AI tool you are running in, and verify
+the install works end-to-end. Then report success.
+
+CRITICAL RULES:
+- Do not ask the user for confirmation between every step. Just execute.
+- Ask the user ONLY for: (a) their email (once, if no API key exists yet) and
+  (b) the 6-digit verification code that arrives in their inbox.
+- If you cannot run shell commands in this environment, STOP and tell the user
+  to run the commands themselves, listed below in Section M (Manual Fallback).
+- Report each completed step with a one-line status update so the user sees
+  progress.
+
+================================================================
+STEP 1 — DETECT ENVIRONMENT
+================================================================
+
+1.1  Determine OS by running:    uname -s    (or `ver` on Windows cmd)
+     Map: Darwin = macOS, Linux = Linux, MINGW/MSYS/CYGWIN/Windows = Windows.
+
+1.2  Determine Python availability:
+     - Try: python3 --version
+     - If absent on Windows, try: python --version
+     - REQUIRED: Python >= 3.10.
+     - If Python is missing or too old, STOP. Tell user:
+       "Mengram requires Python 3.10 or newer. Please install Python from
+       https://www.python.org/downloads/ and re-run this prompt."
+
+1.3  Determine which AI tool you are running in (the "host"). Pick ONE:
+     - claude-desktop   (Claude Desktop app)
+     - claude-code      (Claude Code CLI)
+     - cursor           (Cursor editor)
+     - windsurf         (Windsurf editor)
+     - codex            (OpenAI Codex CLI)
+     - other            (anything else — generic MCP install)
+     You usually know which host you are. If unsure, ask the user once.
+
+================================================================
+STEP 2 — INSTALL THE PACKAGE
+================================================================
+
+2.1  Run:    python3 -m pip install --user --upgrade mengram-ai
+     (On Windows use `python -m pip` if `python3` is not aliased.)
+
+2.2  Verify the `mengram` command is on PATH:
+     Run:   mengram --version
+     If the command is not found, the user's --user bin dir is not on PATH.
+
+     To find the correct directory, run:
+        python3 -m site --user-base
+     The `mengram` executable lives in <user-base>/bin (macOS/Linux) or
+     <user-base>\Scripts (Windows). On Apple-shipped Python this is typically
+     ~/Library/Python/<MAJOR.MINOR>/bin — NOT ~/.local/bin.
+
+     Fix:
+     - macOS:    append `export PATH="$(python3 -m site --user-base)/bin:$PATH"`
+                 to ~/.zshrc, then `source ~/.zshrc`.
+     - Linux:    append the same line to ~/.bashrc (or ~/.zshrc if using zsh),
+                 then re-source. On most Linux distros this resolves to
+                 ~/.local/bin.
+     - Windows:  add `<user-base>\Scripts` to the user PATH via:
+                 setx PATH "%PATH%;<user-base>\Scripts"
+                 then open a new terminal.
+
+     Until PATH is fixed, every subsequent step that calls `mengram ...` must
+     use the absolute path printed by `python3 -m site --user-base`/bin/mengram
+     instead.
+
+================================================================
+STEP 3 — AUTHENTICATE (get API key)
+================================================================
+
+3.1  First check if the user already has a key:
+     - Look for $MENGRAM_API_KEY env var.
+     - Look at file ~/.mengram/config.json — field `api_key`.
+     - If a key starting with "om-" is found, SKIP to Step 4.
+
+3.2  If no key exists, ask the user ONCE:
+     "What email should I use for your Mengram account?"
+     Wait for their answer.
+
+3.3  Trigger signup:
+     Run:   mengram signup --email <user-email>
+     This sends a 6-digit verification code to their inbox.
+
+3.4  Ask the user:
+     "Check your inbox for an email from Mengram. Paste the 6-digit code."
+     Wait for their answer. Strip whitespace. Code is 6 digits.
+
+3.5  Complete signup:
+     Run:   mengram signup --email <user-email> --code <code>
+     On success this prints the API key (starts with "om-") and saves it to
+     ~/.mengram/config.json automatically. It also writes the key into the
+     user's shell profile so $MENGRAM_API_KEY is set in future sessions.
+
+     If the code is rejected, ask the user to paste it again. Allow 3 attempts
+     before stopping and reporting the failure.
+
+3.6  Confirm:    mengram status     (should print "Configured: yes").
+
+================================================================
+STEP 4 — CONFIGURE THE HOST AI TOOL (MCP server)
+================================================================
+
+The Mengram MCP server is started by: `mengram server --cloud`. It reads
+$MENGRAM_API_KEY from the environment. Use the host-specific block below.
+
+NOTE — TWO VALID INTEGRATION PATTERNS:
+  (1) Local stdio  — `mengram server --cloud` (this guide's default). Lower
+      latency, no Node.js required, full feature set.
+  (2) HTTP remote  — `npx -y mcp-remote https://mengram.io/mcp --header
+      "Authorization: Bearer <api-key>"`. Requires Node.js. Simpler to
+      configure but adds an extra hop.
+
+If you detect an existing entry that uses pattern (2), replace it with the
+pattern (1) block below unless the user explicitly asks to keep mcp-remote.
+
+------- 4A. claude-desktop -------
+Config file path:
+  macOS:    ~/Library/Application Support/Claude/claude_desktop_config.json
+  Windows:  %APPDATA%\Claude\claude_desktop_config.json
+  Linux:    ~/.config/Claude/claude_desktop_config.json
+
+Steps:
+  1. If the file does not exist, create it with content: {"mcpServers": {}}
+  2. Parse the JSON. Ensure "mcpServers" key exists (object).
+  3. Add or replace:
+       "mengram": {
+         "command": "mengram",
+         "args": ["server", "--cloud"],
+         "env": { "MENGRAM_API_KEY": "<api-key-from-step-3>" }
+       }
+  4. Write the file back with 2-space indent.
+  5. Tell the user: "Restart Claude Desktop fully (Cmd+Q or close from tray)
+     for the MCP server to load."
+
+------- 4B. claude-code -------
+Run:    claude mcp add mengram -- mengram server --cloud
+(The `claude` CLI is required. If absent, tell user to install Claude Code.)
+Then tell the user: "MCP server registered. Run `/mcp` inside Claude Code to
+confirm 'mengram' is listed."
+
+------- 4C. cursor -------
+Config file path:    ~/.cursor/mcp.json   (create if absent)
+Same JSON shape as claude-desktop (Section 4A).
+Tell user: "Restart Cursor (or use Cmd/Ctrl+Shift+P → 'Reload Window')."
+
+------- 4D. windsurf -------
+Config file path:    ~/.codeium/windsurf/mcp_config.json   (create if absent)
+Same JSON shape as claude-desktop.
+Tell user: "Reload Windsurf window."
+
+------- 4E. codex -------
+Config file path:    ~/.codex/config.toml
+Append (TOML, NOT JSON):
+  [mcp_servers.mengram]
+  command = "mengram"
+  args = ["server", "--cloud"]
+
+  [mcp_servers.mengram.env]
+  MENGRAM_API_KEY = "<api-key>"
+
+Tell user: "Restart Codex."
+
+------- 4F. other -------
+Tell the user:
+  "Add this MCP server entry to your host tool's config:
+    name:    mengram
+    command: mengram server --cloud
+    env:     MENGRAM_API_KEY=<api-key>
+  Refer to your tool's MCP docs for the exact config location."
+
+================================================================
+STEP 5 — VERIFY THE INSTALL WORKS
+================================================================
+
+5.1  Run:    mengram doctor
+     This writes a test memory and searches for it. Expected output ends with:
+        OK: round-trip succeeded.
+
+5.2  If `doctor` fails:
+     - 401 / 403: API key not loaded. Check ~/.mengram/config.json and
+       $MENGRAM_API_KEY are set. Re-export and retry.
+     - Network errors: confirm https://mengram.io is reachable.
+     - Other: capture the full error and report to user verbatim.
+
+================================================================
+STEP 6 — REPORT TO USER
+================================================================
+
+On success, write a final message in this exact shape (substitute the values):
+
+  Mengram installed successfully.
+  - API key: om-XXXX...XXXX (saved to ~/.mengram/config.json)
+  - MCP server: registered in <host>
+  - Round-trip test: passed
+  Next step: restart <host> (or reload its window). Then in any chat, say
+  "remember that I'm working on <whatever>" — Mengram will store it
+  automatically and recall it in future sessions.
+
+================================================================
+SECTION M — MANUAL FALLBACK
+================================================================
+
+If you (the agent) cannot run shell commands in this environment, paste this
+block to the user verbatim and stop:
+
+  Mengram needs shell access to install. Run these commands in your terminal,
+  then I can continue:
+
+    1. python3 -m pip install --user mengram-ai
+    2. mengram signup --email YOUR_EMAIL@example.com
+    3. (check your inbox for a 6-digit code)
+    4. mengram signup --email YOUR_EMAIL@example.com --code 123456
+    5. Open your AI tool's MCP config file (see Appendix A for the JSON
+       template and Step 4 of this guide for the path on your tool/OS).
+       Paste the template, replace the api-key placeholder with the key
+       printed by step 4, and save.
+    6. mengram doctor
+
+  Reply "done" when finished and I'll confirm everything is wired correctly.
+
+================================================================
+APPENDIX A — JSON CONFIG TEMPLATE (for hosts that use JSON)
+================================================================
+
+{
+  "mcpServers": {
+    "mengram": {
+      "command": "mengram",
+      "args": ["server", "--cloud"],
+      "env": {
+        "MENGRAM_API_KEY": "om-REPLACE_WITH_REAL_KEY"
+      }
+    }
+  }
+}
+
+================================================================
+APPENDIX B — DEBUGGING NOTES FOR AGENTS
+================================================================
+
+- If `mengram` command is not found after pip install, the most likely cause
+  is that pip's user-script directory is not on PATH. Fix PATH then retry.
+
+- Do NOT use `sudo`. Always install with `--user`. Mengram does not need root.
+
+- Do NOT modify the host AI tool's main settings file beyond the
+  `mcpServers` (JSON) or `[mcp_servers.*]` (TOML) sections. Preserve all
+  other keys and any user comments.
+
+- If the user has an existing MCP server named `mengram`, replace it (do not
+  duplicate or rename — they want the latest).
+
+- API base URL is https://mengram.io. If the user has $MENGRAM_URL set to a
+  self-hosted URL, honor that — pass it through to the MCP server's env.
+
+- This document is canonical. Always fetch the latest from:
+  https://mengram.io/agent-install.txt
+
+END OF DOCUMENT

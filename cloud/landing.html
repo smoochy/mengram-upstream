@@ -9,8 +9,8 @@
     <!-- Privacy-friendly analytics by Plausible -->
     <script async src="https://plausible.io/js/pa-0hhr-Yt01J5NdtKDFK9iN.js"></script>
     <script>window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()</script>
-    <title>Mengram — AI Memory for Claude Code, MCP & AI Agents | Auto-Save & Auto-Recall</title>
-    <meta name="description" content="Give Claude Code persistent memory with one command. Auto-save, auto-recall, cognitive profile. 3 memory types, MCP server, Python & JS SDKs. Free Mem0 alternative.">
+    <title>Mengram — The Memory Layer for AI Agents that Learn</title>
+    <meta name="description" content="Memory infrastructure for AI agents. Semantic, episodic, and procedural memory through one API. Multi-tenant, 23 languages, MCP server, Python & JS SDKs. Open-source Mem0 alternative.">
     <meta name="keywords" content="Claude Managed Agents memory, Managed Agents MCP, Claude Code memory, Claude Code hooks, Claude Code auto-save, Claude Code persistent memory, AI memory API, LLM memory, Mem0 alternative, MCP memory server, Claude Desktop memory, episodic memory, procedural memory, cognitive profile, knowledge graph, AI agents, auto-recall, claude-mem alternative, AI agent memory, Claude Code plugins, MCP server Claude, Cursor memory, Windsurf memory, RAG alternative, AI memory open source">
     <meta name="google-site-verification" content="AgH6oyB88LhyyfEqVQn9XnT1mPiFpgCX5GFVJMC5yEs">
     <meta name="author" content="Ali Baizhanov">
@@ -20,8 +20,8 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mengram.io">
-    <meta property="og:title" content="Mengram — Auto-Memory for Claude Code & AI Agents">
-    <meta property="og:description" content="Two commands: pip install mengram-ai && mengram setup. Claude Code auto-saves conversations, auto-recalls context on every prompt, loads your profile on start. 3 memory types, MCP server, free tier.">
+    <meta property="og:title" content="Mengram — The Memory Layer for AI Agents that Learn">
+    <meta property="og:description" content="Memory infrastructure for AI agents. Semantic, episodic, and procedural memory — one API, 23 languages, multi-tenant. Works with Claude, GPT, Gemini, Cursor, LangChain, CrewAI.">
     <meta property="og:site_name" content="Mengram">
     <meta property="og:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta property="og:image:width" content="1200">
@@ -31,8 +31,8 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@mengram_io">
     <meta name="twitter:creator" content="@alibaizhanov">
-    <meta name="twitter:title" content="Mengram — Auto-Memory for Claude Code & AI Agents">
-    <meta name="twitter:description" content="Two commands: pip install && mengram setup. Auto-save, auto-recall, cognitive profile. 3 memory types, 29 MCP tools, Python & JS SDKs. Free Mem0 alternative.">
+    <meta name="twitter:title" content="Mengram — The Memory Layer for AI Agents that Learn">
+    <meta name="twitter:description" content="Memory infrastructure for AI agents. Semantic, episodic, and procedural memory — one API, 23 languages, multi-tenant. Open-source Mem0 alternative.">
     <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta name="twitter:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
@@ -580,6 +580,74 @@
         .c-str { color: #34d399; }
         .c-cmt { color: var(--text-3); }
         .c-fn { color: #60a5fa; }
+
+        /* ---- Install in one prompt ---- */
+        .install-prompt-section {
+            padding: 24px 0 56px;
+        }
+        .install-prompt-card {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 32px 28px;
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(124, 92, 255, 0.06), rgba(124, 92, 255, 0.02));
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .install-prompt-eyebrow {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #c084fc;
+            background: rgba(192, 132, 252, 0.1);
+            padding: 4px 10px;
+            border-radius: 999px;
+            margin-bottom: 14px;
+        }
+        .install-prompt-title {
+            margin: 0 0 10px;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .install-prompt-sub {
+            margin: 0 auto 20px;
+            max-width: 600px;
+            color: var(--text-2);
+            font-size: 15px;
+            line-height: 1.55;
+        }
+        .install-prompt-box {
+            text-align: left;
+            margin-top: 0;
+        }
+        .install-prompt-box pre {
+            margin: 0;
+            padding-right: 70px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 13px;
+            line-height: 1.55;
+            color: var(--text);
+        }
+        .install-prompt-fineprint {
+            margin: 14px 0 0;
+            font-size: 13px;
+            color: var(--text-3);
+        }
+        .install-prompt-fineprint a {
+            color: var(--text-2);
+            text-decoration: underline;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 2px;
+        }
+        .install-prompt-fineprint a:hover { color: var(--text); }
+        @media (max-width: 640px) {
+            .install-prompt-card { padding: 24px 18px; }
+            .install-prompt-title { font-size: 20px; }
+        }
 
         /* ---- Features ---- */
         .features-section {
@@ -1816,8 +1884,8 @@
                 <span class="pulse"></span>
                 Open Source · Apache 2.0
             </div>
-            <h1 class="reveal" style="transition-delay:0.1s">Your agent forgets everything.<br><span class="brand">Mengram</span> fixes that.</h1>
-            <p class="reveal" style="transition-delay:0.2s">Your agent learns from every session. Facts, workflows, and procedures — auto-saved, auto-recalled, auto-improved. Works natively in 23 languages.</p>
+            <h1 class="reveal" style="transition-delay:0.1s">The memory layer<br>for <span class="brand">AI agents that learn.</span></h1>
+            <p class="reveal" style="transition-delay:0.2s">Semantic, episodic, and procedural memory — one API, 23 languages, multi-tenant by default.</p>
             <div class="terminal reveal" style="transition-delay:0.3s">
                 <div class="terminal-header">
                     <span class="terminal-dot red"></span>
@@ -1838,6 +1906,22 @@
                 </a>
             </div>
             <p class="reveal hero-reassure" style="transition-delay:0.5s">No credit card. No trial. Free forever tier with 40 memories/mo.</p>
+        </section>
+
+        <!-- Install in one prompt -->
+        <section class="install-prompt-section reveal">
+            <div class="install-prompt-card">
+                <span class="install-prompt-eyebrow">Install in one prompt</span>
+                <h2 class="install-prompt-title">Tell your agent to install Mengram.</h2>
+                <p class="install-prompt-sub">Paste the prompt below into Claude Desktop, Cursor, Claude Code, Codex, or Windsurf. The agent reads our setup guide, installs the SDK, wires up the MCP server, and verifies the round-trip — end-to-end, no terminal context-switching.</p>
+                <div class="code-box install-prompt-box">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>Install Mengram for me. Fetch the canonical install guide
+at https://mengram.io/agent-install.txt and follow it
+precisely. My email is YOUR_EMAIL_HERE.</pre>
+                </div>
+                <p class="install-prompt-fineprint">Works in any agent with shell + file-edit + web-fetch tools. Prefer doing it manually? Read the <a href="/agent-install.txt">plain-text guide</a> or the <a href="https://docs.mengram.io">SDK docs</a>.</p>
+            </div>
         </section>
 
         <!-- Works with -->

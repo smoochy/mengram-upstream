@@ -1680,6 +1680,19 @@ m.add("I love hiking in the mountains")</code></pre>
             "Sitemap: https://mengram.io/sitemap.xml"
         )
 
+    @app.get("/agent-install.txt", response_class=PlainTextResponse)
+    @app.get("/agent-install", response_class=PlainTextResponse)
+    async def agent_install():
+        """Agent-native install guide. Plain text, structured for LLM agents
+        to fetch and follow. See cloud/agent-install.txt."""
+        import os as _os
+        path = _os.path.join(_os.path.dirname(__file__), "agent-install.txt")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="agent-install.txt missing")
+
     # ---- Interactive Playground (unauthenticated, demo account only) ----
 
     @app.get("/api/playground/search", tags=["System"])

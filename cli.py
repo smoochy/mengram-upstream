@@ -244,6 +244,19 @@ def cmd_status(args):
     """Check setup status"""
     print("🧠 Mengram Status\n")
 
+    # Cloud API key (set by `mengram signup` or `mengram setup`)
+    cloud_key = _load_cloud_api_key()
+    if cloud_key:
+        masked = f"{cloud_key[:10]}...{cloud_key[-4:]}" if len(cloud_key) > 14 else cloud_key
+        print(f"✅ Cloud API key: {masked}")
+        print(f"   Source: {'env MENGRAM_API_KEY' if os.environ.get('MENGRAM_API_KEY') else _cloud_config_path()}")
+        print(f"Configured: yes")
+    else:
+        print(f"❌ Cloud API key: not set")
+        print(f"   Run: mengram signup --email <you@example.com>")
+        print(f"Configured: no")
+    print()
+
     # Config
     config_path = DEFAULT_CONFIG
     if config_path.exists():
@@ -253,7 +266,7 @@ def cmd_status(args):
         print(f"   Provider: {config.get('llm', {}).get('provider', '?')}")
         print(f"   Vault: {config.get('vault_path', '?')}")
     else:
-        print(f"❌ Config not found. Run: mengram init")
+        print(f"ℹ️  No local config (cloud-only install). Run `mengram init` if you want a local vault.")
         return
 
     # Vault
@@ -653,6 +666,29 @@ def _remove_hook(settings, event_name, command_marker):
     return removed
 
 
+def _ssl_context():
+    """Build an SSL context that uses certifi CAs when available, otherwise
+    falls back to the system trust store. macOS system Python sometimes ships
+    without a usable CA bundle, so certifi is the safer default."""
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+def _cli_user_agent() -> str:
+    """User-Agent for HTTP requests from the CLI. Cloudflare rejects the
+    default `Python-urllib/X.Y` UA with error 1010 — always send a real one."""
+    try:
+        from importlib.metadata import version as _pkg_version
+        ver = _pkg_version("mengram-ai")
+    except Exception:
+        ver = "dev"
+    return f"Mengram-CLI/{ver}"
+
+
 def _api_request_unauth(method, path, body=None):
     """Unauthenticated HTTP request to Mengram API (for signup/verify)."""
     import urllib.request
@@ -662,10 +698,13 @@ def _api_request_unauth(method, path, body=None):
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(
         url, data=data, method=method,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": _cli_user_agent(),
+        },
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15, context=_ssl_context()) as resp:
             return json.loads(resp.read()), resp.status
     except urllib.error.HTTPError as e:
         try:
@@ -703,6 +742,201 @@ def _save_api_key(api_key):
     except Exception:
         os.environ["MENGRAM_API_KEY"] = api_key
         return None
+
+
+def _cloud_config_path() -> Path:
+    return DEFAULT_HOME / "config.json"
+
+
+def _save_cloud_config(api_key: str) -> Path:
+    """Persist API key to ~/.mengram/config.json (agent-readable location)."""
+    DEFAULT_HOME.mkdir(parents=True, exist_ok=True)
+    path = _cloud_config_path()
+    existing = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text())
+        except Exception:
+            existing = {}
+    existing["api_key"] = api_key
+    existing["base_url"] = os.environ.get("MENGRAM_URL", "https://mengram.io").rstrip("/")
+    path.write_text(json.dumps(existing, indent=2))
+    try:
+        os.chmod(path, 0o600)
+    except Exception:
+        pass
+    return path
+
+
+def _load_cloud_api_key() -> str:
+    """Resolve API key in this order: env var, ~/.mengram/config.json."""
+    key = os.environ.get("MENGRAM_API_KEY", "").strip()
+    if key:
+        return key
+    path = _cloud_config_path()
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+            return (data.get("api_key") or "").strip()
+        except Exception:
+            return ""
+    return ""
+
+
+def cmd_signup(args):
+    """Non-interactive signup for agent-driven installs.
+
+    Two modes:
+      mengram signup --email X            # sends 6-digit code to inbox
+      mengram signup --email X --code Y   # verifies code, prints + saves key
+    """
+    email = (getattr(args, "email", "") or "").strip()
+    code = (getattr(args, "code", "") or "").strip()
+
+    if not email:
+        print("Error: --email is required", file=sys.stderr)
+        sys.exit(2)
+
+    if not code:
+        # Mode 1: trigger code email
+        data, status = _api_request_unauth("POST", "/v1/signup", {"email": email})
+        if status == 200:
+            print(f"Code sent to {email}. Run again with --code <6-digit-code> to complete signup.")
+            sys.exit(0)
+        if status == 409:
+            # Existing account — send reset-key code instead so the same flow works
+            data, status = _api_request_unauth("POST", "/v1/reset-key", {"email": email})
+            if status == 200:
+                print(f"Account exists. Reset-key code sent to {email}. Run again with --code <6-digit-code> to issue a new key.")
+                sys.exit(0)
+            print(f"Error: {data.get('detail', 'reset-key failed')}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Error: {data.get('detail', 'signup failed')}", file=sys.stderr)
+        sys.exit(1)
+
+    # Mode 2: verify code. Try /v1/verify first; fall back to reset-verify on 4xx.
+    data, status = _api_request_unauth("POST", "/v1/verify", {"email": email, "code": code})
+    if status != 200:
+        data2, status2 = _api_request_unauth("POST", "/v1/reset-key/verify", {"email": email, "code": code})
+        if status2 == 200:
+            data, status = data2, status2
+
+    if status != 200:
+        print(f"Error: {data.get('detail', 'verification failed')}", file=sys.stderr)
+        sys.exit(1)
+
+    api_key = (data.get("api_key") or "").strip()
+    if not api_key:
+        print("Error: API response missing api_key", file=sys.stderr)
+        sys.exit(1)
+
+    cfg_path = _save_cloud_config(api_key)
+    profile = _save_api_key(api_key)
+
+    print(f"API key: {api_key}")
+    print(f"Saved to: {cfg_path}")
+    if profile:
+        print(f"Shell profile updated: {profile}")
+    print("Configured: yes")
+
+
+def cmd_doctor(args):
+    """End-to-end round-trip test: add a memory and search it back.
+
+    Exits 0 on success, 1 on failure. Output ends with one of:
+      OK: round-trip succeeded.
+      FAIL: <reason>
+    """
+    import urllib.request
+    import urllib.error
+    import time
+
+    api_key = _load_cloud_api_key()
+    if not api_key:
+        print("FAIL: no API key. Run `mengram signup --email <you>` first.", file=sys.stderr)
+        sys.exit(1)
+
+    base = os.environ.get("MENGRAM_URL", "https://mengram.io").rstrip("/")
+    marker = f"mengram-doctor-{int(time.time())}"
+    fact_text = f"Round-trip marker {marker}: this memory was written by mengram doctor."
+
+    ctx = _ssl_context()
+    ua = _cli_user_agent()
+
+    def _req(method, path, body):
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(
+            base + path, data=data, method=method,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": ua,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
+                return json.loads(r.read()), r.status
+        except urllib.error.HTTPError as e:
+            try:
+                return json.loads(e.read()), e.code
+            except Exception:
+                return {"detail": str(e)}, e.code
+        except Exception as e:
+            return {"detail": str(e)}, 0
+
+    print("1/3  Authenticating against /v1/me ...")
+    try:
+        req = urllib.request.Request(
+            base + "/v1/me",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": ua,
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
+            me = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        print(f"FAIL: auth check returned HTTP {e.code}: {e.read().decode()[:200]}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"FAIL: cannot reach {base}/v1/me ({e})", file=sys.stderr)
+        sys.exit(1)
+    print(f"     ok — account {me.get('email', '<unknown>')} plan={me.get('plan', '?')}")
+
+    print("2/3  Writing test memory via /v1/add ...")
+    body = {"messages": [{"role": "user", "content": fact_text}]}
+    data, status = _req("POST", "/v1/add", body)
+    if status not in (200, 202):
+        print(f"FAIL: /v1/add returned HTTP {status}: {data.get('detail', '<no detail>')}", file=sys.stderr)
+        sys.exit(1)
+    job_id = data.get("job_id")
+    print(f"     ok — job_id={job_id} (async; waiting for extraction)")
+
+    print("3/3  Searching for marker via /v1/search/all ...")
+    found = False
+    deadline = time.time() + 45
+    while time.time() < deadline:
+        time.sleep(3)
+        data, status = _req("POST", "/v1/search/all", {"query": marker, "limit": 5})
+        if status != 200:
+            print(f"FAIL: /v1/search/all returned HTTP {status}: {data.get('detail', '<no detail>')}", file=sys.stderr)
+            sys.exit(1)
+        results = data.get("results") or []
+        for r in results:
+            blob = json.dumps(r)
+            if marker in blob:
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        print("FAIL: marker did not appear in search within 45s.")
+        print("     The memory may still be processing — extraction can take longer under load.")
+        print("     Re-run `mengram doctor` in a minute; if it keeps failing, contact support.")
+        sys.exit(1)
+
+    print("OK: round-trip succeeded.")
 
 
 def cmd_setup(args):
@@ -783,13 +1017,18 @@ def cmd_setup(args):
 
         print(f"  API key: {api_key}")
 
-    # Save key to shell profile
+    # Save key to shell profile and to ~/.mengram/config.json (agent-readable).
     profile = _save_api_key(api_key)
     if profile:
         print(f"  Key saved to {profile}")
     else:
         print(f"  Could not write to shell profile. Add manually:")
         print(f'  export MENGRAM_API_KEY="{api_key}"')
+    try:
+        cfg_path = _save_cloud_config(api_key)
+        print(f"  Key persisted to {cfg_path}")
+    except Exception as e:
+        print(f"  Note: could not write ~/.mengram/config.json ({e})")
 
     # Install hooks
     no_hooks = getattr(args, "no_hooks", False)
@@ -1222,6 +1461,21 @@ def main():
     p_setup.add_argument("--key", help="API key (skip signup, just save key + install hooks)")
     p_setup.add_argument("--no-hooks", action="store_true", help="Skip Claude Code hook install")
 
+    # signup (non-interactive — designed for agent-driven installs)
+    p_signup = sub.add_parser(
+        "signup",
+        help="Non-interactive signup. Without --code, sends verification email. "
+             "With --code, completes signup and saves API key.",
+    )
+    p_signup.add_argument("--email", required=True, help="Account email")
+    p_signup.add_argument("--code", help="6-digit verification code from your inbox")
+
+    # doctor (round-trip cloud API test)
+    sub.add_parser(
+        "doctor",
+        help="Verify the cloud install works end-to-end (add + search round-trip).",
+    )
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -1250,6 +1504,10 @@ def main():
         cmd_web(args)
     elif args.command == "setup":
         cmd_setup(args)
+    elif args.command == "signup":
+        cmd_signup(args)
+    elif args.command == "doctor":
+        cmd_doctor(args)
     else:
         parser.print_help()
 
