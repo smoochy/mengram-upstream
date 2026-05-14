@@ -52,6 +52,21 @@ except Exception:
 _USER_AGENT = f"Mengram-Python-SDK/{_SDK_VERSION}"
 
 
+def _ssl_context():
+    """Build an SSL context using certifi CAs when available. macOS system
+    Python (and python.org installers without `Install Certificates.command`)
+    ship without a usable CA bundle, so certifi is the safer default."""
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+_SSL_CTX = _ssl_context()
+
+
 class QuotaExceededError(Exception):
     """Raised when API quota is exceeded (HTTP 402)."""
     def __init__(self, detail: dict[str, Any]) -> None:
@@ -119,7 +134,7 @@ class CloudMemory:
                 }
             )
             try:
-                with urllib.request.urlopen(req) as resp:
+                with urllib.request.urlopen(req, context=_SSL_CTX) as resp:
                     self._last_headers = resp.headers
                     return json.loads(resp.read())
             except urllib.error.HTTPError as e:
@@ -262,7 +277,7 @@ class CloudMemory:
                 }
             )
             try:
-                with urllib.request.urlopen(req) as resp:
+                with urllib.request.urlopen(req, context=_SSL_CTX) as resp:
                     self._last_headers = resp.headers
                     return json.loads(resp.read())
             except urllib.error.HTTPError as e:
