@@ -884,6 +884,17 @@ def cmd_doctor(args):
         except Exception as e:
             return {"detail": str(e)}, 0
 
+    print("0/3  Checking MCP SDK presence ...")
+    try:
+        import mcp  # noqa: F401
+        print("     ok — mcp package importable")
+    except ImportError:
+        print("FAIL: `mcp` package is not installed. The MCP server (`mengram "
+              "server --cloud`) will not start without it.", file=sys.stderr)
+        print("     Fix: pip install --user 'mcp>=1.0'   (or reinstall: pip "
+              "install --user --upgrade mengram-ai)", file=sys.stderr)
+        sys.exit(1)
+
     print("1/3  Authenticating against /v1/me ...")
     try:
         req = urllib.request.Request(
