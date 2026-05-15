@@ -4494,8 +4494,11 @@ REFLECTIONS/PATTERNS:
                                top_k: int = 5, after: str = None,
                                before: str = None, sub_user_id: str = "default",
                                query_text: str = "") -> list[dict]:
-        """Hybrid search over episodic memory: vector + BM25 + RRF + temporal decay.
-        Routes by query vector size: 1024 → embedding_v2, else embedding."""
+        """Hybrid search over episodic memory: vector + BM25 + RRF + temporal decay
+        + importance weighting. Routes by query vector size: 1024 → embedding_v2,
+        else embedding. Importance comes from the LLM extractor (0.0–1.0); a
+        major-event episode (0.9) outranks a trivial one (0.1) by ~38% at equal
+        vector similarity."""
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         if query_text:
             query_text = query_text.replace("\x00", "")
@@ -4573,7 +4576,16 @@ REFLECTIONS/PATTERNS:
             for eid, rank in bm25_rows.items():
                 rrf_scores[eid] = rrf_scores.get(eid, 0) + 1.0 / (rrf_k + rank)
 
-            # Stage 4: Temporal decay + build results
+            # Stage 4: Temporal decay + importance weighting + build results.
+            # Importance comes from the extractor's LLM scoring (0.0–1.0, 0.5 default).
+            # We have 5k+ episodes scored >= 0.7 ("major events") that previously
+            # weren't being surfaced ahead of trivial episodes in retrieval.
+            # imp_boost = 0.8 + 0.4 * importance → range [0.8, 1.2]:
+            #   importance 0.1 ("minor") → ×0.84 (de-prioritized)
+            #   importance 0.5 ("neutral") → ×1.00 (no change vs old behavior)
+            #   importance 0.9 ("major milestone") → ×1.16 (boosted)
+            # Gentle enough that vector relevance still dominates; meaningful
+            # enough that a major event tied 0.85 ≈ wins over a trivial 0.85.
             now = datetime.datetime.now(datetime.timezone.utc)
             results = []
             for eid in sorted(rrf_scores, key=rrf_scores.get, reverse=True):
@@ -4587,7 +4599,9 @@ REFLECTIONS/PATTERNS:
                         decay = 0.7
                 else:
                     decay = 0.7
-                final_score = round(rrf_scores[eid] * decay, 4)
+                importance = float(row.get("importance") or 0.5)
+                imp_boost = 0.8 + 0.4 * importance
+                final_score = round(rrf_scores[eid] * decay * imp_boost, 4)
                 results.append({
                     "id": eid,
                     "summary": row["summary"],
