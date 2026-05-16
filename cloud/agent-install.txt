@@ -84,27 +84,48 @@ STEP 2 — INSTALL THE PACKAGE
      instead.
 
 ================================================================
-STEP 3 — AUTHENTICATE (get API key)
+STEP 3 — DETERMINE API BASE + AUTHENTICATE
 ================================================================
 
-3.1  First check if the user already has a key:
+3.1  Determine the API base URL you should target for ALL remaining steps:
+     - Default: https://mengram.io
+     - If $MENGRAM_URL is already set, use that value.
+     - If the user explicitly says they use a self-hosted Mengram instance and
+       no base URL is obvious, ask ONCE: "What is your Mengram base URL?"
+
+     Treat any base URL other than https://mengram.io as self-hosted.
+     IMPORTANT: this guide does NOT deploy self-hosted Mengram. It only
+     configures the AI tool to talk to an already running instance.
+
+3.2  First check if the user already has a key:
      - Look for $MENGRAM_API_KEY env var.
      - Look at file ~/.mengram/config.json — field `api_key`.
      - If a key starting with "om-" is found, SKIP to Step 4.
 
-3.2  If no key exists, ask the user ONCE:
+3.3  If no key exists, ask the user ONCE:
      "What email should I use for your Mengram account?"
      Wait for their answer.
 
-3.3  Trigger signup:
+3.4  Trigger signup against the base URL from 3.1:
      Run:   mengram signup --email <user-email>
-     This sends a 6-digit verification code to their inbox.
 
-3.4  Ask the user:
+     Hosted default (https://mengram.io):
+     - This sends a 6-digit verification code to the user's inbox.
+
+     Self-hosted:
+     - The instance may return an API key immediately, require a 6-digit code,
+       or use a custom verification flow configured by that instance owner.
+     - If the command immediately prints an `om-` key, save it and continue
+       without asking for a verification code.
+     - If it says a 6-digit code is required, continue with 3.5.
+     - If it says verification is unavailable or handled outside email, stop
+       and tell the user exactly what is needed from their self-hosted setup.
+
+3.5  If a 6-digit code is required, ask the user:
      "Check your inbox for an email from Mengram. Paste the 6-digit code."
      Wait for their answer. Strip whitespace. Code is 6 digits.
 
-3.5  Complete signup:
+3.6  Complete signup:
      Run:   mengram signup --email <user-email> --code <code>
      On success this prints the API key (starts with "om-") and saves it to
      ~/.mengram/config.json automatically. It also writes the key into the
@@ -113,19 +134,25 @@ STEP 3 — AUTHENTICATE (get API key)
      If the code is rejected, ask the user to paste it again. Allow 3 attempts
      before stopping and reporting the failure.
 
-3.6  Confirm:    mengram status     (should print "Configured: yes").
+3.7  Confirm:    mengram status     (should print "Configured: yes").
 
 ================================================================
 STEP 4 — CONFIGURE THE HOST AI TOOL (MCP server)
 ================================================================
 
 The Mengram MCP server is started by: `mengram server --cloud`. It reads
-$MENGRAM_API_KEY from the environment. Use the host-specific block below.
+$MENGRAM_API_KEY and, when set, $MENGRAM_URL from the environment. Use the
+host-specific block below.
+
+If the shell OS and the host-app OS differ (common with WSL, remote shells, or
+SSH), always edit the config for the HOST application you are actually
+installing into. Do not assume the shell's home directory matches the host
+tool's config location.
 
 NOTE — TWO VALID INTEGRATION PATTERNS:
   (1) Local stdio  — `mengram server --cloud` (this guide's default). Lower
       latency, no Node.js required, full feature set.
-  (2) HTTP remote  — `npx -y mcp-remote https://mengram.io/mcp --header
+  (2) HTTP remote  — `npx -y mcp-remote <base-url>/mcp --header
       "Authorization: Bearer <api-key>"`. Requires Node.js. Simpler to
       configure but adds an extra hop.
 
@@ -145,7 +172,10 @@ Steps:
        "mengram": {
          "command": "mengram",
          "args": ["server", "--cloud"],
-         "env": { "MENGRAM_API_KEY": "<api-key-from-step-3>" }
+         "env": {
+           "MENGRAM_API_KEY": "<api-key-from-step-3>",
+           "MENGRAM_URL": "<base-url-from-step-3>"
+         }
        }
   4. Write the file back with 2-space indent.
   5. Tell the user: "Restart Claude Desktop fully (Cmd+Q or close from tray)
@@ -154,6 +184,8 @@ Steps:
 ------- 4B. claude-code -------
 Run:    claude mcp add mengram -- mengram server --cloud
 (The `claude` CLI is required. If absent, tell user to install Claude Code.)
+If the base URL from Step 3 is NOT https://mengram.io, ensure the Claude Code
+MCP entry also provides:    MENGRAM_URL=<base-url-from-step-3>
 Then tell the user: "MCP server registered. Run `/mcp` inside Claude Code to
 confirm 'mengram' is listed."
 
@@ -176,6 +208,7 @@ Append (TOML, NOT JSON):
 
   [mcp_servers.mengram.env]
   MENGRAM_API_KEY = "<api-key>"
+  MENGRAM_URL = "<base-url-from-step-3>"
 
 Tell user: "Restart Codex."
 
@@ -192,7 +225,7 @@ added through the Settings UI. STOP the install flow and tell the user:
     3. Click 'Add custom connector'
     4. Fill in:
          Name:      Mengram
-         URL:       https://mengram.io/mcp
+         URL:       <base-url-from-step-3>/mcp
          Headers:   Authorization: Bearer <api-key-from-step-3>
     5. Save. The 30 Mengram tools appear in this same chat after a refresh.
 
@@ -206,10 +239,10 @@ Tell the user:
   "Add this MCP server entry to your host tool's config:
     name:    mengram
     command: mengram server --cloud
-    env:     MENGRAM_API_KEY=<api-key>
+    env:     MENGRAM_API_KEY=<api-key>, MENGRAM_URL=<base-url>
   Refer to your tool's MCP docs for the exact config location.
   For HTTP-only hosts (Claude.ai web, ChatGPT, custom apps), use the
-  remote URL instead: https://mengram.io/mcp with Authorization header
+  remote URL instead: <base-url>/mcp with Authorization header
   'Bearer <api-key>'."
 
 ================================================================
@@ -223,7 +256,7 @@ STEP 5 — VERIFY THE INSTALL WORKS
 5.2  If `doctor` fails:
      - 401 / 403: API key not loaded. Check ~/.mengram/config.json and
        $MENGRAM_API_KEY are set. Re-export and retry.
-     - Network errors: confirm https://mengram.io is reachable.
+     - Network errors: confirm the base URL from Step 3 is reachable.
      - Other: capture the full error and report to user verbatim.
 
 ================================================================
@@ -235,6 +268,7 @@ On success, write a final message in this exact shape (substitute the values):
   Mengram installed successfully.
   - API key: om-XXXX...XXXX (saved to ~/.mengram/config.json)
   - MCP server: registered in <host>
+  - API base URL: <base-url-from-step-3>
   - Round-trip test: passed
   Next step: restart <host> (or reload its window). Then in any chat, say
   "remember that I'm working on <whatever>" — Mengram will store it
@@ -250,6 +284,8 @@ block to the user verbatim and stop:
   Mengram needs shell access to install. Run these commands in your terminal,
   then I can continue:
 
+    0. If you use self-hosted Mengram, set MENGRAM_URL in your shell to your
+       base URL first (for example: http://localhost:8420)
     1. python3 -m pip install --user mengram-ai
     2. mengram signup --email YOUR_EMAIL@example.com
     3. (check your inbox for a 6-digit code)
@@ -272,7 +308,8 @@ APPENDIX A — JSON CONFIG TEMPLATE (for hosts that use JSON)
       "command": "mengram",
       "args": ["server", "--cloud"],
       "env": {
-        "MENGRAM_API_KEY": "om-REPLACE_WITH_REAL_KEY"
+        "MENGRAM_API_KEY": "om-REPLACE_WITH_REAL_KEY",
+        "MENGRAM_URL": "https://mengram.io-or-your-self-hosted-base-url"
       }
     }
   }
@@ -294,8 +331,10 @@ APPENDIX B — DEBUGGING NOTES FOR AGENTS
 - If the user has an existing MCP server named `mengram`, replace it (do not
   duplicate or rename — they want the latest).
 
-- API base URL is https://mengram.io. If the user has $MENGRAM_URL set to a
-  self-hosted URL, honor that — pass it through to the MCP server's env.
+- API base URL defaults to https://mengram.io. If the user has $MENGRAM_URL
+  set to a self-hosted URL, honor that throughout signup, doctor, and the MCP
+  server env. For HTTP-remote MCP, use <base-url>/mcp instead of hard-coding
+  mengram.io.
 
 - This document is canonical. Always fetch the latest from:
   https://mengram.io/agent-install.txt
