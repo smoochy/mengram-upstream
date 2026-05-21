@@ -7044,6 +7044,60 @@ Return ONLY JSON (no markdown):
                 })
             return out
 
+    def get_users_for_insights_digest(self, min_insights: int = 3,
+                                       window_days: int = 7,
+                                       max_samples: int = 5) -> list:
+        """Return users whose reflection layer was refreshed in the trailing
+        window — ready-to-render payload for the weekly Insights digest email.
+
+        Pairs with the Dream Cycle cron: when reflection generated/refreshed
+        N >= min_insights entries for a user in the last week, they get a
+        digest. Stale or skipped users (quota_skipped, dormant > 30d) won't
+        appear because their refreshed_at didn't move.
+
+        Samples carry the top max_samples reflections by recency, so the
+        email body can render a real preview instead of a count-only nudge.
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT e.user_id::text AS user_id, u.email,
+                          COUNT(k.id) AS new_insights,
+                          (SELECT array_agg(row_to_json(t))
+                           FROM (
+                               SELECT k2.scope, k2.title, k2.content,
+                                      k2.confidence, k2.refreshed_at
+                               FROM knowledge k2
+                               JOIN entities e2 ON e2.id = k2.entity_id
+                               WHERE e2.user_id = e.user_id
+                                 AND e2.sub_user_id = e.sub_user_id
+                                 AND k2.type = 'reflection'
+                                 AND k2.refreshed_at > NOW() - make_interval(days => %s)
+                               ORDER BY k2.refreshed_at DESC
+                               LIMIT %s
+                           ) t
+                          ) AS samples
+                   FROM knowledge k
+                   JOIN entities e ON e.id = k.entity_id
+                   JOIN users u ON u.id = e.user_id
+                   WHERE k.type = 'reflection'
+                     AND k.refreshed_at > NOW() - make_interval(days => %s)
+                     AND u.email IS NOT NULL
+                     AND e.sub_user_id = 'default'
+                   GROUP BY e.user_id, e.sub_user_id, u.email
+                   HAVING COUNT(k.id) >= %s
+                   ORDER BY new_insights DESC""",
+                (window_days, max_samples, window_days, min_insights)
+            )
+            return [
+                {
+                    "user_id": r["user_id"],
+                    "email": r["email"],
+                    "new_insights": int(r["new_insights"]),
+                    "samples": r["samples"] or [],
+                }
+                for r in cur.fetchall()
+            ]
+
     # ---- Memory Health snapshot read (Day 5 of Memory Health Monitor) ----
 
     def get_memory_health(self, user_id: str) -> Optional[dict]:

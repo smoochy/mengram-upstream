@@ -1606,6 +1606,63 @@ m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <p style="font-size:12px;color:#55556a;line-height:1.5">This email fires when your retrieval quality drops below 0.6 mean cosine relevance over the past week. Healthy users don't get this digest. To disable, reply with "unsubscribe health digest".</p>"""
 
+            elif drip_type == "insights_digest":
+                # Weekly Insights digest — fires Mondays after Dream Cycle has had
+                # 7 days to populate. `code` carries the new_insights count; `plan`
+                # (re-used field) carries a JSON-encoded samples list.
+                import json as _json
+                import html as _html_esc
+                try:
+                    samples = _json.loads(plan) if plan else []
+                except Exception:
+                    samples = []
+                # Defensive: count can be a huge LLM-generated number for power
+                # users (saw 1014 in dry-run). Cap subject line so it doesn't
+                # look like spam.
+                try:
+                    _count_int = int(code) if code else 0
+                except (TypeError, ValueError):
+                    _count_int = 0
+                if _count_int >= 100:
+                    count = f"{_count_int}+"
+                elif _count_int > 0:
+                    count = str(_count_int)
+                else:
+                    count = "several"
+                subject = f"Mengram refreshed {count} insights about you this week"
+                sample_html = ""
+                if samples:
+                    scope_label = {
+                        "entity": "Profile",
+                        "cross": "Pattern",
+                        "temporal": "Recent",
+                    }
+                    rows = []
+                    for s in samples[:5]:
+                        scope = scope_label.get(s.get("scope", ""), s.get("scope", ""))
+                        title = _html_esc.escape((s.get("title") or "").strip()[:80])
+                        content_raw = (s.get("content") or "").strip()
+                        if len(content_raw) > 220:
+                            content_raw = content_raw[:217] + "…"
+                        content = _html_esc.escape(content_raw)
+                        rows.append(
+                            f"""<div style="background:#12121e;border:1px solid #2a2a44;border-radius:8px;padding:14px 16px;margin:10px 0">
+                                <div style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">{scope}</div>
+                                <div style="font-size:14px;color:#e8e8f0;font-weight:600;margin-bottom:6px">{title}</div>
+                                <div style="font-size:13px;color:#9999b0;line-height:1.5">{content}</div>
+                               </div>"""
+                        )
+                    sample_html = "".join(rows)
+                body = f"""
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Mengram's Dream Cycle ran this week and refreshed your insight layer. Here's a preview of what surfaced:</p>
+                    {sample_html}
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="{BASE_URL}/dashboard?tab=intelligence" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">See all insights</a>
+                    </div>
+                    <p style="font-size:13px;color:#8888a8;line-height:1.6">These are derived from facts you've stored in Mengram. The Dream Cycle runs nightly to look for patterns across your knowledge graph — entity summaries, cross-entity themes, and recent shifts.</p>
+                    <p style="font-size:12px;color:#55556a;line-height:1.5">You're getting this because Mengram refreshed your insights this week. To stop these digests, reply with "unsubscribe insights digest".</p>"""
+
             elif drip_type in ("checkout_abandoned_1h", "checkout_abandoned_24h"):
                 # Build a fresh HMAC-signed checkout URL (robust — original Paddle URL may expire)
                 resume_url = f"{BASE_URL}/dashboard?tab=billing"
@@ -8460,6 +8517,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                 code=row["summary"],
                                 user_id=row["user_id"],
                                 plan=row["recommendations"],
+                            )
+                            _time.sleep(0.5)
+
+                # Weekly Insights digest — pairs with the Dream Cycle reflection cron.
+                # Fires Mondays 09:00–10:00 UTC, same window as Health digest so users
+                # get one combined Monday-morning beat from Mengram. Deduped per ISO
+                # week via drip_type suffix.
+                if _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10:
+                    import json as _json_ins
+                    _iso_ins = _now_utc.strftime("%G-W%V")
+                    _insights_drip = f"insights_digest_{_iso_ins}"
+                    for row in store.get_users_for_insights_digest():
+                        if store.try_record_drip(row["email"], _insights_drip, row["user_id"]):
+                            _send_drip_email(
+                                row["email"],
+                                "insights_digest",
+                                code=str(row["new_insights"]),
+                                user_id=row["user_id"],
+                                plan=_json_ins.dumps(row["samples"], default=str),
                             )
                             _time.sleep(0.5)
 
