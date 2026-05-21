@@ -8556,7 +8556,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 )
                 logger.info(f"🌙 Reflection: {len(users_due)} users due for refresh")
 
-                llm_client = get_llm()
+                # get_llm() returns the extractor; the real LLM client (with
+                # .complete()) lives on extractor.llm — same pattern used by
+                # the auto-reflection path in /v1/add (api.py:6532, 7489).
+                extractor = get_llm()
+                llm_client = extractor.llm
                 reflected = 0
                 quota_skipped = 0
                 error_skipped = 0
