@@ -8416,13 +8416,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                   "result": "Memory lookup failed — proceed without context."}]}
 
         # Sort person entities first so the caller's own facts surface ahead
-        # of related-entity facts (their daughter, their insurance, the
-        # clinic agent, etc.). E2E test on Michael Chen showed without this
-        # the assistant got "Known about caller (Emma): ..." about the
-        # daughter, not Michael.
+        # of related entities. Among persons, sort by fact count descending —
+        # the caller almost always accumulates more facts about themselves
+        # than they accumulate about people they mention (daughter, doctor,
+        # etc.), so most-facts-wins is a reliable caller-vs-mentioned-person
+        # heuristic without needing explicit caller tagging.
         def _is_person(e):
             return (e.get("type") or "").lower() == "person"
-        entities_sorted = sorted(entities, key=lambda e: 0 if _is_person(e) else 1)
+        entities_sorted = sorted(
+            entities,
+            key=lambda e: (
+                0 if _is_person(e) else 1,
+                -len(e.get("facts") or []),
+            )
+        )
 
         # Build a compact context string the assistant can verbalize.
         # Skip the reserved _reflections entity, cap facts per entity.
