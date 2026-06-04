@@ -2744,14 +2744,26 @@ class CloudStore:
                             pass
                 final_scores[eid] = score
 
-            # Sort, filter by minimum RRF score, and diversify via MMR
-            # Direct matches: fixed floor 0.01. Graph-expanded: stricter adaptive floor.
+            # Sort, filter by minimum RRF score, and diversify via MMR.
+            # RRF score is 1/(60+rank): top hit ≈ 0.016, rank-50 ≈ 0.009 — the prior
+            # floor of 0.01 admitted essentially any entity that existed in the index
+            # as a "result." Production logs over 7 days showed 63.8% of searches
+            # returning scores < 0.05 (e.g. 0.0165 repeated 175× across users) —
+            # arithmetic noise being dressed up as a hit. Callers (especially
+            # voice/MCP) consume these as ground truth, so the silent bad-result
+            # mode caused churn (sven 506/506 failed, carellarafaelantonio 200×
+            # the same 0.0165). New floor 0.15 cleanly separates the bimodal
+            # distribution (real matches > 0.3, noise < 0.05) without dropping
+            # legitimate weak-but-real hits. Graph-expanded keeps the stricter
+            # adaptive floor relative to top_score so multi-hop noise still gets
+            # filtered.
+            DIRECT_MATCH_FLOOR = 0.15
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
-            min_rrf_graph = max(0.01, top_score * 0.4)
+            min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
             filtered = [(eid, score) for eid, score in sorted_final
                         if (eid in graph_expanded_ids and score >= min_rrf_graph) or
-                           (eid not in graph_expanded_ids and score >= 0.01)]
+                           (eid not in graph_expanded_ids and score >= DIRECT_MATCH_FLOOR)]
             top_entities = self._mmr_select(filtered, entity_info, top_k)
 
             if not top_entities:
@@ -6477,14 +6489,16 @@ Return ONLY JSON (no markdown):
                     }
                     graph_expanded_ids.add(eid)
 
-            # Sort, filter by minimum RRF score, and limit
-            # Direct matches: fixed floor 0.01. Graph-expanded: stricter adaptive floor.
+            # Sort, filter by minimum RRF score, and limit.
+            # Floor raised 0.01 → 0.15 to stop arithmetic-noise results — see
+            # the parallel fix in search_vector above for the full reasoning.
+            DIRECT_MATCH_FLOOR = 0.15
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
-            min_rrf_graph = max(0.01, top_score * 0.4)
+            min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
             sorted_results = [(eid, score) for eid, score in sorted_final
                               if (eid in graph_expanded_ids and score >= min_rrf_graph) or
-                                 (eid not in graph_expanded_ids and score >= 0.01)][:top_k]
+                                 (eid not in graph_expanded_ids and score >= DIRECT_MATCH_FLOOR)][:top_k]
 
             if not sorted_results:
                 return []

@@ -7208,7 +7208,22 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         query_language=_detect_query_language(req.query))
         # increment already done atomically in use_quota above
 
-        response = {"results": results}
+        # Quality label — strong/weak/no_match — so MCP clients and voice
+        # adapters can act on retrieval honesty instead of guessing whether
+        # a low-score result is "noise" or "best-effort hit." See
+        # search_vector floor fix in store.py for the underlying reasoning.
+        if top_score >= 0.3:
+            result_quality = "strong"
+        elif top_score >= 0.15:
+            result_quality = "weak"
+        else:
+            result_quality = "no_match"
+
+        response = {
+            "results": results,
+            "result_quality": result_quality,
+            "top_score": round(top_score, 4),
+        }
         if not results:
             try:
                 st = store.get_stats(user_id, sub_user_id=sub_uid)
@@ -8244,12 +8259,39 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 r.pop("_norm", None)
             return all_items[:limit]
 
+        # Compute top score across all categories so we can label the response
+        # quality honestly. Without this field, callers (Vapi, MCP, dashboard)
+        # can't tell a real match from arithmetic noise that slipped past the
+        # filter — leading to the silent-bad-result churn pattern documented
+        # in the search_vector floor fix.
+        def _top_score(*cats):
+            best = 0.0
+            for cat in cats:
+                if not cat:
+                    continue
+                v = cat[0].get("score") if isinstance(cat[0], dict) else 0
+                try:
+                    best = max(best, float(v or 0))
+                except Exception:
+                    pass
+            return best
+
+        overall_top = _top_score(semantic, episodic, procedural, chunks)
+        if overall_top >= 0.3:
+            result_quality = "strong"
+        elif overall_top >= 0.15:
+            result_quality = "weak"
+        else:
+            result_quality = "no_match"
+
         result = {
             "results": _normalize_and_merge(semantic, episodic, procedural, chunks, req.limit),
             "semantic": semantic,
             "episodic": episodic,
             "procedural": procedural,
             "chunks": chunks,
+            "result_quality": result_quality,
+            "top_score": round(overall_top, 4),
         }
 
         # Cache in Redis (TTL 30s)
