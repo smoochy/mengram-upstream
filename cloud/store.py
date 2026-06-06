@@ -2761,7 +2761,7 @@ class CloudStore:
             #                       real two-index hits (≥ 0.0328) while still
             #                       admitting legitimate single-index strong
             #                       recency-boosted results.
-            DIRECT_MATCH_FLOOR = 0.025
+            DIRECT_MATCH_FLOOR = 0.01
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
             min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
@@ -6496,7 +6496,7 @@ Return ONLY JSON (no markdown):
             # Sort, filter by minimum RRF score, and limit.
             # Threshold 0.025 — see search_vector above for the full reasoning
             # on noise (0.0164/0.0213) vs real-hit (≥ 0.0328) separation.
-            DIRECT_MATCH_FLOOR = 0.025
+            DIRECT_MATCH_FLOOR = 0.01
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
             min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)

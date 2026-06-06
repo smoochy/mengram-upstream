@@ -7212,11 +7212,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # adapters can act on retrieval honesty instead of guessing whether
         # a low-score result is "noise" or "best-effort hit." See
         # search_vector floor fix in store.py for the underlying reasoning.
-        # Quality thresholds on raw RRF scale (NOT normalized).
-        # See store.py:DIRECT_MATCH_FLOOR for the underlying score distribution.
-        if top_score >= 0.04:
+        # Quality label on the score caller sees (post-rerank for Pro+,
+        # raw RRF for free/starter). Rerank outputs 0-1 cosine-style scores;
+        # raw RRF tops out around 0.05. We use overlapping but distinct
+        # bands so callers can decide whether to trust a "weak" result.
+        if top_score >= 0.3:
             result_quality = "strong"
-        elif top_score >= 0.025:
+        elif top_score >= 0.02:
             result_quality = "weak"
         else:
             result_quality = "no_match"
