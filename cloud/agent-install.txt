@@ -662,6 +662,15 @@ APPENDIX B — DEBUGGING NOTES FOR AGENTS
 - If the user has an existing MCP server named `mengram`, replace it (do not
   duplicate or rename — they want the latest).
 
+- Watch for a stale entry pointing at a wrapper script, e.g.
+  `"command": "C:\\Users\\<user>\\.mengram\\run_server.sh"` (or any
+  `run_server.sh`/`run_server.ps1` path). On Windows, Claude Desktop cannot
+  execute a `.sh` file directly (no shebang interpreter), and such entries
+  are typically missing the `env.MENGRAM_API_KEY`/`env.MENGRAM_URL` block —
+  the server then fails to connect even though Claude Code CLI/VSC (which use
+  a separate config, see 1.3) work fine. Replace this entry with the standard
+  <LAUNCHER_CMD>/<LAUNCHER_ARGS_PREFIX> + env block from Section 4A.
+
 - API base URL defaults to https://mengram.io. If the user has $MENGRAM_URL
   set to a self-hosted URL, honor that throughout signup, doctor, and the MCP
   server env. For HTTP-remote MCP, use <base-url>/mcp instead of hard-coding
