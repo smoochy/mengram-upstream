@@ -476,24 +476,26 @@ def cmd_auto_context(args):
 
 def cmd_auto_save(args):
     """Hook handler — called by Claude Code on Stop event. Reads stdin, saves to Mengram."""
+    HOOK = "auto-save"
+    EVENT = "Stop"
     try:
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        api_key = _load_cloud_api_key()
         if not api_key:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
         try:
             input_data = json.loads(sys.stdin.read())
         except Exception:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no input")
 
         # Avoid infinite loops
         if input_data.get("stop_hook_active"):
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (stop_hook_active)")
 
         last_msg = input_data.get("last_assistant_message", "")
         if not last_msg or len(last_msg.strip()) < 10:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (short response)")
 
         # Throttle: only save every Nth response
         session_id = input_data.get("session_id", "unknown")
@@ -515,7 +517,7 @@ def cmd_auto_save(args):
             pass
 
         if count > 1 and count % every != 0:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, f"throttled ({count}/{every})")
 
         # Extract last user message from transcript
         user_message = ""
@@ -561,7 +563,7 @@ def cmd_auto_save(args):
 
         # Send to Mengram API
         from cloud.client import CloudMemory
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         mem = CloudMemory(api_key=api_key, base_url=base_url)
@@ -573,24 +575,22 @@ def cmd_auto_save(args):
             run_id=session_id,
         )
 
-        output_hook_success()
+        _emit_hook_exit(EVENT, args, HOOK, "saved")
 
     except SystemExit:
         raise
     except Exception as e:
         if _is_quota_error(e):
-            # Surface quota error to user via stderr (Stop hooks don't support additionalContext)
+            # Always surface quota errors via stderr (Stop hooks don't support
+            # additionalContext), regardless of --verbose.
             print(
                 f"\n⚠️  [Mengram] Memory save failed — quota exceeded. {e}\n"
                 "   Your conversations are NOT being saved.\n"
                 "   Upgrade at https://mengram.io/dashboard\n",
                 file=sys.stderr,
             )
-            print(json.dumps({"continue": True}))
-            sys.exit(0)
-        # Never crash, never block Claude
-        print(json.dumps({"continue": True, "suppressOutput": True}))
-        sys.exit(0)
+            _emit_hook_exit(EVENT, args, HOOK, "quota exceeded")
+        _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
 def cmd_hook(args):
@@ -1528,6 +1528,8 @@ def main():
     p_autosave = sub.add_parser("auto-save", help=argparse.SUPPRESS)
     p_autosave.add_argument("--every", type=int, default=3)
     p_autosave.add_argument("--user-id", default=None)
+    p_autosave.add_argument("--verbose", action="store_true",
+                             help="Emit a status marker for each hook invocation")
 
     # auto-recall (internal, called by Claude Code UserPromptSubmit hook)
     p_autorecall = sub.add_parser("auto-recall", help=argparse.SUPPRESS)
