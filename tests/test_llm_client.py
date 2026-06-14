@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import logging
 import pytest
 
 from engine.extractor.llm_client import (
@@ -125,3 +126,95 @@ def test_create_llm_client_openai_with_model_list_url_returns_fallback_client(tm
 
     assert isinstance(client, FallbackOpenAIClient)
     assert client.models == ["list/model-a", "list/model-b", "fallback/model"]
+
+
+class _FakeMessage:
+    def __init__(self, content):
+        self.content = content
+
+
+class _FakeChoice:
+    def __init__(self, content):
+        self.message = _FakeMessage(content)
+
+
+class _FakeResponse:
+    def __init__(self, content="ok", choices=None, model=None, provider=None):
+        self.choices = [_FakeChoice(content)] if choices is None else choices
+        if model is not None:
+            self.model = model
+        if provider is not None:
+            self.provider = provider
+
+
+class _FakeCompletions:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.response
+
+
+class _FakeChatAPI:
+    def __init__(self, completions):
+        self.completions = completions
+
+
+class _FakeOpenAISDK:
+    def __init__(self, completions):
+        self.chat = _FakeChatAPI(completions)
+
+
+def _make_openai_client_with_fake_sdk(response=None, provider_sort=""):
+    client = OpenAIClient(api_key="key", model="test/model", provider_sort=provider_sort)
+    completions = _FakeCompletions(response or _FakeResponse())
+    client.client = _FakeOpenAISDK(completions)
+    return client, completions
+
+
+def test_openai_client_complete_without_provider_sort_omits_extra_body():
+    client, completions = _make_openai_client_with_fake_sdk()
+    assert client.complete("prompt") == "ok"
+    assert "extra_body" not in completions.calls[0]
+
+
+def test_openai_client_complete_with_provider_sort_adds_extra_body():
+    client, completions = _make_openai_client_with_fake_sdk(provider_sort="latency")
+    client.complete("prompt")
+    assert completions.calls[0]["extra_body"] == {"provider": {"sort": "latency"}}
+
+
+def test_openai_client_chat_with_provider_sort_adds_extra_body():
+    client, completions = _make_openai_client_with_fake_sdk(provider_sort="throughput")
+    client.chat([{"role": "user", "content": "hi"}])
+    assert completions.calls[0]["extra_body"] == {"provider": {"sort": "throughput"}}
+
+
+def test_openai_client_complete_raises_runtime_error_on_empty_choices():
+    client, _ = _make_openai_client_with_fake_sdk(response=_FakeResponse(choices=[]))
+    with pytest.raises(RuntimeError, match="returned no choices"):
+        client.complete("prompt")
+
+
+def test_openai_client_complete_raises_runtime_error_on_none_content():
+    client, _ = _make_openai_client_with_fake_sdk(response=_FakeResponse(content=None))
+    with pytest.raises(RuntimeError, match="returned empty content"):
+        client.complete("prompt")
+
+
+def test_openai_client_complete_logs_model_and_provider(caplog):
+    response = _FakeResponse(content="ok", model="google/gemma-4-31b-it-20260402:free", provider="OpenInference")
+    client, _ = _make_openai_client_with_fake_sdk(response=response)
+    with caplog.at_level(logging.INFO, logger="mengram"):
+        client.complete("prompt")
+    assert "google/gemma-4-31b-it-20260402:free" in caplog.text
+    assert "OpenInference" in caplog.text
+
+
+def test_openai_client_complete_logs_fallback_provider_when_missing(caplog):
+    client, _ = _make_openai_client_with_fake_sdk(response=_FakeResponse(content="ok"))
+    with caplog.at_level(logging.INFO, logger="mengram"):
+        client.complete("prompt")
+    assert "test/model served by ?" in caplog.text
