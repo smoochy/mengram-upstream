@@ -16,8 +16,9 @@ def _make_openai_client(responses_by_model):
     """Return a fake OpenAIClient constructor: responses_by_model maps model -> str or Exception."""
 
     class FakeClient:
-        def __init__(self, api_key, model):
+        def __init__(self, api_key, model, provider_sort=""):
             self.model = model
+            self.provider_sort = provider_sort
 
         def complete(self, prompt, system="", response_format=None):
             result = responses_by_model[self.model]
@@ -218,3 +219,48 @@ def test_openai_client_complete_logs_fallback_provider_when_missing(caplog):
     with caplog.at_level(logging.INFO, logger="mengram"):
         client.complete("prompt")
     assert "test/model served by ?" in caplog.text
+
+
+def test_fallback_client_passes_provider_sort_to_each_model():
+    fake_cls = _make_openai_client({"model-a": "ok", "model-b": "ok"})
+    with patch("engine.extractor.llm_client.OpenAIClient", fake_cls):
+        client = FallbackOpenAIClient(api_key="key", models=["model-a", "model-b"], provider_sort="latency")
+
+    assert client._clients[0].provider_sort == "latency"
+    assert client._clients[1].provider_sort == "latency"
+
+
+def test_create_llm_client_openai_passes_provider_sort_to_openai_client():
+    client = create_llm_client({
+        "provider": "openai",
+        "openai": {"api_key": "key", "model": "gpt-4o-mini", "provider_sort": "latency"},
+    })
+
+    assert isinstance(client, OpenAIClient)
+    assert client.provider_sort == "latency"
+
+
+def test_create_llm_client_fallback_passes_provider_sort(tmp_path, monkeypatch):
+    cache_path = tmp_path / "model-cache.json"
+    monkeypatch.setattr(
+        "engine.extractor.model_source.DEFAULT_CACHE_PATH", cache_path
+    )
+
+    def fetch_fn(url):
+        import json as _json
+        return _json.dumps({"models": [{"id": "list/model-a"}]}).encode()
+
+    monkeypatch.setattr("engine.extractor.llm_client._default_fetch_fn", fetch_fn)
+
+    client = create_llm_client({
+        "provider": "openai",
+        "openai": {
+            "api_key": "key",
+            "model": "fallback/model",
+            "model_list_url": "https://example.com/models.json",
+            "provider_sort": "throughput",
+        },
+    })
+
+    assert isinstance(client, FallbackOpenAIClient)
+    assert all(c.provider_sort == "throughput" for c in client._clients)
