@@ -193,11 +193,13 @@ class FallbackOpenAIClient(LLMClient):
     highest-first, with the configured `model` appended as final fallback).
     """
 
-    def __init__(self, api_key: str, models: list[str]):
+    def __init__(self, api_key: str, models: list[str], provider_sort: str = ""):
         if not models:
             raise ValueError("FallbackOpenAIClient requires at least one model")
         self.models = models
-        self._clients = [OpenAIClient(api_key=api_key, model=m) for m in models]
+        self._clients = [
+            OpenAIClient(api_key=api_key, model=m, provider_sort=provider_sort) for m in models
+        ]
 
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
         errors = []
@@ -236,10 +238,11 @@ def create_llm_client(config: dict) -> LLMClient:
         settings = config.get("openai", {})
         api_key = settings["api_key"]
         model = settings.get("model", "gpt-4o-mini")
+        provider_sort = (settings.get("provider_sort") or "").strip()
         if (settings.get("model_list_url") or "").strip():
             candidates = get_model_candidates(settings, fetch_fn=_default_fetch_fn)
-            return FallbackOpenAIClient(api_key=api_key, models=candidates)
-        return OpenAIClient(api_key=api_key, model=model)
+            return FallbackOpenAIClient(api_key=api_key, models=candidates, provider_sort=provider_sort)
+        return OpenAIClient(api_key=api_key, model=model, provider_sort=provider_sort)
     elif provider == "ollama":
         settings = config.get("ollama", {})
         return OllamaClient(
