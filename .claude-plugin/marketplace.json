@@ -1,0 +1,29 @@
+{
+  "name": "mengram",
+  "owner": {
+    "name": "Ali Baizhanov",
+    "email": "ali@mengram.io",
+    "url": "https://mengram.io"
+  },
+  "plugins": [
+    {
+      "name": "mengram",
+      "version": "0.1.0",
+      "description": "Persistent memory for Claude Code that survives /clear, machine switches, and team handoffs. Hosted memory backend with hybrid retrieval (vector + BM25 + RRF), Ebbinghaus temporal decay, and importance weighting. Same memory available across Claude Code, Cursor, Codex, and ChatGPT.",
+      "source": {
+        "source": "git-subdir",
+        "url": "alibaizhanov/mengram",
+        "path": "integrations/claude-code-plugin"
+      },
+      "author": {
+        "name": "Ali Baizhanov",
+        "email": "ali@mengram.io",
+        "url": "https://mengram.io"
+      },
+      "homepage": "https://mengram.io",
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "keywords": ["memory", "mcp", "context", "cross-device", "hybrid-retrieval", "anthropic", "persistence"]
+    }
+  ]
+}
