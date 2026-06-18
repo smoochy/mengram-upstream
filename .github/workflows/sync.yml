@@ -14,14 +14,14 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_PAT }}
           fetch-depth: 0
 
       - name: Sync upstream changes
         id: sync
         uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
         with:
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_repo_token: ${{ secrets.SYNC_PAT }}
           upstream_sync_repo: alibaizhanov/mengram
           upstream_sync_branch: main
           target_sync_branch: main
