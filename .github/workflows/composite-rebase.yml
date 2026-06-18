@@ -53,12 +53,13 @@ jobs:
           echo "prs_json<<EOF" >> "$GITHUB_OUTPUT"
           echo "$prs_json" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+          printf '%s' "$prs_json" > "$RUNNER_TEMP/prs.json"
 
       - name: Fetch PR branch refs
         shell: bash
         run: |
           set -euo pipefail
-          prs_json='${{ steps.prs.outputs.prs_json }}'
+          prs_json="$(cat "$RUNNER_TEMP/prs.json")"
           if [ "$(echo "$prs_json" | jq 'length')" -eq 0 ]; then
             echo "No open smoochy PRs — nothing to fetch"
             exit 0
@@ -72,7 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          prs_json='${{ steps.prs.outputs.prs_json }}'
+          prs_json="$(cat "$RUNNER_TEMP/prs.json")"
 
           if [ "$(echo "$prs_json" | jq 'length')" -eq 0 ]; then
             echo "No open smoochy PRs — composite will equal upstream/main"
