@@ -116,7 +116,17 @@ jobs:
             done
           fi
 
-      - name: Force-push smoochy/composite
+      - name: Restore smoochy workflow files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch smoochy "refs/heads/upstream-sync:refs/remotes/smoochy/upstream-sync"
+          git checkout refs/remotes/smoochy/upstream-sync -- .github/
+          git diff --cached --quiet || \
+            git commit -m "chore(composite): restore .github/ from upstream-sync"
+          echo ".github/ restored from smoochy/upstream-sync"
+
+      - name: Force-push main
         shell: bash
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
@@ -124,8 +134,8 @@ jobs:
           set -euo pipefail
           git push --force \
             "https://x-access-token:${SYNC_PAT}@github.com/smoochy/mengram-upstream.git" \
-            "HEAD:refs/heads/smoochy/composite"
-          echo "smoochy/composite updated"
+            "HEAD:refs/heads/main"
+          echo "main updated"
 
       - name: Dispatch build to mengram
         shell: bash
@@ -147,5 +157,5 @@ jobs:
           {
             printf '### Composite Branch Rebase\n\n'
             printf -- '- upstream base: `alibaizhanov/mengram:main`\n'
-            printf -- '- target branch: `smoochy/mengram-upstream:smoochy/composite`\n'
+            printf -- '- target branch: `smoochy/mengram-upstream:main`\n'
           } >> "$GITHUB_STEP_SUMMARY"
