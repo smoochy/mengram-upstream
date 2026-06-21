@@ -29,14 +29,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin smoochy/composite
-          echo "composite HEAD: $(git rev-parse origin/smoochy/composite)"
+          git fetch origin main
+          echo "composite HEAD: $(git rev-parse origin/main)"
 
       - name: Rebase features onto composite
         shell: bash
         run: |
           set -euo pipefail
-          git rebase origin/smoochy/composite
+          git rebase origin/main
           echo "Rebase succeeded"
 
       - name: Force-push smoochy/features
@@ -56,5 +56,5 @@ jobs:
         run: |
           {
             printf '### Sync features onto composite\n\n'
-            printf -- '- rebased: `smoochy/features` → `smoochy/composite`\n'
+            printf -- '- rebased: `smoochy/features` → `main`\n'
           } >> "$GITHUB_STEP_SUMMARY"

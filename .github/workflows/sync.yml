@@ -24,7 +24,7 @@ jobs:
           target_repo_token: ${{ secrets.SYNC_PAT }}
           upstream_sync_repo: alibaizhanov/mengram
           upstream_sync_branch: main
-          target_sync_branch: main
+          target_sync_branch: upstream-sync
           test_mode: false
 
       - name: Check for errors
