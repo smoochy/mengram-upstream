@@ -126,7 +126,31 @@ jobs:
             git commit -m "chore(composite): restore .github/ from upstream-sync"
           echo ".github/ restored from smoochy/upstream-sync"
 
+      - name: Detect composite changes
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The composite is rebuilt from scratch each run, so commit SHAs change
+          # daily even when nothing upstream moved. Compare the content-addressed
+          # tree hash instead: identical file content => identical tree => no-op.
+          if ! git fetch smoochy "refs/heads/main:refs/remotes/smoochy/main" 2>/dev/null; then
+            echo "No existing main on smoochy — treating composite as changed"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          new_tree="$(git rev-parse 'HEAD^{tree}')"
+          old_tree="$(git rev-parse 'refs/remotes/smoochy/main^{tree}')"
+          if [ "$new_tree" = "$old_tree" ]; then
+            echo "Composite tree unchanged vs current main (${new_tree}) — skipping push + build"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Composite tree changed (old=${old_tree} new=${new_tree})"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Force-push main
+        if: steps.changed.outputs.changed == 'true'
         shell: bash
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
@@ -138,6 +162,7 @@ jobs:
           echo "main updated"
 
       - name: Dispatch build to mengram
+        if: steps.changed.outputs.changed == 'true'
         shell: bash
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
@@ -158,4 +183,6 @@ jobs:
             printf '### Composite Branch Rebase\n\n'
             printf -- '- upstream base: `alibaizhanov/mengram:main`\n'
             printf -- '- target branch: `smoochy/mengram-upstream:main`\n'
+            printf -- '- composite changed: `%s` (push + build skipped when `false`)\n' \
+              "${{ steps.changed.outputs.changed }}"
           } >> "$GITHUB_STEP_SUMMARY"
