@@ -1468,6 +1468,40 @@ class CloudStore:
             )
             return cur.fetchone() is not None
 
+    def get_silence_report(self) -> dict:
+        """Founder ops report: accounts whose SILENCE is the signal.
+        - broken_on_install: signed up 48h+ ago (within 30 days), have an API
+          key, zero usage_log rows ever — the plugin/setup never worked.
+        - gone_quiet: 20+ lifetime calls, newest one 14-45 days old — real
+          users slipping away (the mnmilford pattern from the 2026-07 audit)."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT u.email, u.created_at::date AS signed_up
+                   FROM users u
+                   JOIN api_keys k ON k.user_id = u.id
+                   LEFT JOIN usage_log l ON l.user_id = u.id
+                   WHERE u.created_at < NOW() - INTERVAL '48 hours'
+                     AND u.created_at > NOW() - INTERVAL '30 days'
+                   GROUP BY u.id, u.email
+                   HAVING COUNT(l.id) = 0
+                   ORDER BY u.created_at DESC"""
+            )
+            broken = [{"email": r["email"], "signed_up": str(r["signed_up"])} for r in cur.fetchall()]
+            cur.execute(
+                """SELECT u.email, MAX(l.created_at)::date AS last_active,
+                          COUNT(l.id) AS total_calls
+                   FROM users u
+                   JOIN usage_log l ON l.user_id = u.id
+                   GROUP BY u.id, u.email
+                   HAVING COUNT(l.id) >= 20
+                      AND MAX(l.created_at) < NOW() - INTERVAL '14 days'
+                      AND MAX(l.created_at) > NOW() - INTERVAL '45 days'
+                   ORDER BY MAX(l.created_at) DESC"""
+            )
+            quiet = [{"email": r["email"], "last_active": str(r["last_active"]),
+                      "total_calls": r["total_calls"]} for r in cur.fetchall()]
+        return {"broken_on_install": broken, "gone_quiet": quiet}
+
     # Drip sequence — each step requires the previous step to have been sent.
     # Prevents sending 24h/72h/7d in a single cron burst when fixing bugs that
     # caused stale drip_emails records (e.g. the api_key.last_used_at IS NULL

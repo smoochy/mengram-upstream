@@ -8923,6 +8923,38 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             )
                             _time.sleep(0.5)
 
+                # Weekly founder ops report — silence alarms. Accounts whose
+                # silence IS the signal: keys that never made a call (broken on
+                # install) and previously-active users gone quiet. Sent to the
+                # founder only, never to users. Mondays, deduped per ISO week.
+                if _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10:
+                    _iso_ops = _now_utc.strftime("%G-W%V")
+                    _ops_email = "the.baizhanov@gmail.com"
+                    if store.try_record_drip(_ops_email, f"founder_silence_{_iso_ops}"):
+                        try:
+                            _rep = store.get_silence_report()
+                            _broken = _rep["broken_on_install"]
+                            _quiet = _rep["gone_quiet"]
+                            if (_broken or _quiet) and os.environ.get("RESEND_API_KEY"):
+                                _lines = [f"Silence report {_iso_ops}", ""]
+                                _lines.append(f"Broken on install — signed up 48h+ ago, zero API calls ({len(_broken)}):")
+                                _lines += [f"  - {r['email']} (signed up {r['signed_up']})" for r in _broken] or ["  (none)"]
+                                _lines.append("")
+                                _lines.append(f"Gone quiet — 20+ calls before, silent 14+ days ({len(_quiet)}):")
+                                _lines += [f"  - {r['email']} (last active {r['last_active']}, {r['total_calls']} calls)" for r in _quiet] or ["  (none)"]
+                                import resend as _resend_ops
+                                _resend_ops.api_key = os.environ["RESEND_API_KEY"]
+                                _resend_ops.Emails.send({
+                                    "from": os.environ.get("EMAIL_FROM", "Mengram <noreply@mengram.io>"),
+                                    "to": [_ops_email],
+                                    "subject": f"[mengram ops] Silence report {_iso_ops}: "
+                                               f"{len(_broken)} broken installs, {len(_quiet)} gone quiet",
+                                    "text": "\n".join(_lines),
+                                })
+                                logger.info(f"📭 Founder silence report sent: {len(_broken)} broken, {len(_quiet)} quiet")
+                        except Exception as _ops_e:
+                            logger.error(f"⚠️ Founder silence report error: {_ops_e}")
+
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")
             _time.sleep(1800)  # Every 30 minutes
