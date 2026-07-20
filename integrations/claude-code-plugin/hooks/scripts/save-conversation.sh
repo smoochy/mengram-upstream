@@ -65,7 +65,7 @@ if curl -fsS --max-time 8 \
   -X POST "$URL" \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
-  -H "User-Agent: mengram-plugin/0.1.2" \
+  -H "User-Agent: mengram-plugin/0.1.3" \
   -d "$PAYLOAD" >/dev/null 2>&1; then
   # Opt-in heartbeat: every N *successful* saves, surface one "still working"
   # line. Absence of the heartbeat then means something. Enable via

@@ -40,7 +40,7 @@ URL="${BASE%/}/v1/profile"
 # of the profile is worth on a cold open.
 RESPONSE=$(curl -fsS --max-time 5 \
   -H "Authorization: Bearer $KEY" \
-  -H "User-Agent: mengram-plugin/0.1.2" \
+  -H "User-Agent: mengram-plugin/0.1.3" \
   "$URL" 2>/dev/null) || {
   if [ ! -f "$MARKER" ]; then
     _first_run_warn "Mengram: an API key was found but verification against $BASE failed (network issue or invalid key). Memory is OFF until this works. Check the key or see the plugin README troubleshooting table."
@@ -53,14 +53,19 @@ mkdir -p "$HOME/.mengram" 2>/dev/null && touch "$MARKER" 2>/dev/null
 
 # Profile is JSON. Use jq if available, otherwise a REAL python3/python —
 # probe with an actual import, not `command -v` (Windows Store stub).
+# /v1/profile returns the prompt in "system_prompt" (the old ".summary" key
+# never existed — this hook silently loaded nothing for months; found during
+# the 0.1.2 self-check verification).
 SUMMARY=""
 if command -v jq >/dev/null 2>&1; then
-  SUMMARY=$(printf '%s' "$RESPONSE" | jq -r '.summary // empty' 2>/dev/null)
+  SUMMARY=$(printf '%s' "$RESPONSE" | jq -r '.system_prompt // .summary // empty' 2>/dev/null)
 else
   for PY in python3 python; do
     if "$PY" -c "import json" >/dev/null 2>&1; then
       SUMMARY=$(printf '%s' "$RESPONSE" | "$PY" -c 'import json,sys
-try: print(json.loads(sys.stdin.read()).get("summary",""))
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get("system_prompt") or d.get("summary") or "")
 except: pass' 2>/dev/null)
       break
     fi
