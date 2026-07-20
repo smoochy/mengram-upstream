@@ -2533,25 +2533,51 @@ class CloudStore:
         """Permanently delete a user account and ALL associated data across
         every sub_user (issue #39). Irreversible.
 
-        Deleting the users row cascades: api_keys, entities (→ facts,
-        relations, knowledge, embeddings), usage_log, subscriptions,
-        usage_counters. Tables whose user_id has NO foreign key to users
-        (TEXT/VARCHAR columns) are deleted explicitly below; their own
-        children cascade (episode_embeddings via episodes, procedure_
-        embeddings/evolution via procedures, chunk_embeddings via
-        conversation_chunks, team_members via teams).
+        Every table is wiped explicitly (children before parents) in one
+        transaction — no reliance on ON DELETE CASCADE, because production
+        tables created by older schema versions lack those constraints.
         Returns per-table deleted counts."""
         email = self.get_user_email(user_id)
-        # No FK to users — explicit cleanup required
-        explicit_tables = [
-            "episodes", "procedures", "conversation_chunks", "memory_triggers",
-            "jobs", "memory_health", "drip_emails", "checkout_sessions",
-            "webhooks", "agent_runs", "oauth_codes", "team_members",
-        ]
         counts = {}
         with self._cursor() as cur:
-            for table in explicit_tables:
-                cur.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))  # noqa: S608 — fixed list above
+            # EVERYTHING is deleted explicitly, children before parents.
+            # Never rely on ON DELETE CASCADE here: schema.sql declares it,
+            # but production tables created by older schemas/migrations lack
+            # it (verified live during #39 e2e — entities/api_keys/usage_log
+            # survived a users-row delete).
+
+            # entities' children
+            cur.execute("SELECT id FROM entities WHERE user_id = %s", (user_id,))
+            entity_ids = [str(r[0]) for r in cur.fetchall()]
+            if entity_ids:
+                for child in ("facts", "knowledge", "embeddings"):
+                    cur.execute(f"DELETE FROM {child} WHERE entity_id = ANY(%s::uuid[])", (entity_ids,))
+                    counts[child] = cur.rowcount
+                cur.execute(
+                    "DELETE FROM relations WHERE source_id = ANY(%s::uuid[]) OR target_id = ANY(%s::uuid[])",
+                    (entity_ids, entity_ids))
+                counts["relations"] = cur.rowcount
+
+            # episodes' / procedures' / chunks' children
+            cur.execute("DELETE FROM episode_embeddings WHERE episode_id IN (SELECT id FROM episodes WHERE user_id = %s)", (user_id,))
+            counts["episode_embeddings"] = cur.rowcount
+            cur.execute("DELETE FROM procedure_embeddings WHERE procedure_id IN (SELECT id FROM procedures WHERE user_id = %s)", (user_id,))
+            counts["procedure_embeddings"] = cur.rowcount
+            cur.execute("DELETE FROM procedure_evolution WHERE procedure_id IN (SELECT id FROM procedures WHERE user_id = %s)", (user_id,))
+            counts["procedure_evolution"] = cur.rowcount
+            cur.execute("DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM conversation_chunks WHERE user_id = %s)", (user_id,))
+            counts["chunk_embeddings"] = cur.rowcount
+
+            # all user-keyed tables
+            user_tables = [
+                "entities", "episodes", "procedures", "conversation_chunks",
+                "memory_triggers", "jobs", "memory_health", "drip_emails",
+                "checkout_sessions", "webhooks", "agent_runs", "oauth_codes",
+                "team_members", "api_keys", "usage_log", "subscriptions",
+                "usage_counters",
+            ]
+            for table in user_tables:
+                cur.execute(f"DELETE FROM {table} WHERE user_id::text = %s", (user_id,))  # noqa: S608 — fixed list above
                 counts[table] = cur.rowcount
             cur.execute("DELETE FROM teams WHERE created_by = %s", (user_id,))
             counts["teams"] = cur.rowcount
@@ -2561,7 +2587,6 @@ class CloudStore:
                 # drip_emails rows can predate signup (user_id NULL) — clear by email too
                 cur.execute("DELETE FROM drip_emails WHERE email = %s", (email,))
                 counts["drip_emails"] += cur.rowcount
-            # users row last — cascades everything with a real FK
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
             counts["users"] = cur.rowcount
         for prefix in ("stats:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
