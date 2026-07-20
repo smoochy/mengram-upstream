@@ -4,30 +4,72 @@
 # Claude Code from starting.
 set -u
 
+# Credentials: env var → ~/.mengram/config.json → give up silently.
+# sed (not python3) for the config parse: on Windows Git Bash, python3 can be
+# the Microsoft Store stub that passes `command -v` but can't run (issue #55).
 KEY="${MENGRAM_API_KEY:-}"
+BASE="${MENGRAM_URL:-}"
+CFG="$HOME/.mengram/config.json"
+if [ -f "$CFG" ]; then
+  [ -z "$KEY" ] && KEY=$(sed -n 's/.*"api_key"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CFG" | head -1)
+  [ -z "$BASE" ] && BASE=$(sed -n 's/.*"base_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CFG" | head -1)
+fi
+BASE="${BASE:-https://mengram.io}"
+
+# First-run self-check ("auto-doctor"): until the plugin has verified one
+# successful round-trip, failures are LOUD — a one-line systemMessage telling
+# the user exactly what's broken. After the first success (marker file) all
+# failures go back to silent, as a hook should be. Rationale: silent failure
+# on a fresh install is indistinguishable from churn — for the user and for us.
+MARKER="$HOME/.mengram/.plugin-verified"
+_first_run_warn() {
+  printf '{"systemMessage": "%s"}\n' "$1"
+  exit 0
+}
+
 if [ -z "$KEY" ]; then
-  exit 0  # no key configured; behave like the plugin isn't installed
+  if [ ! -f "$MARKER" ]; then
+    _first_run_warn "Mengram plugin is installed but no API key was found, so memory is OFF. Get a free key at https://mengram.io and save it to ~/.mengram/config.json (see plugin README for the one-liner)."
+  fi
+  exit 0  # verified before; silent as usual
 fi
 
-URL="${MENGRAM_URL:-https://mengram.io}/v1/profile"
+URL="${BASE%/}/v1/profile"
 
 # 5-second budget — anything slower delays session start more than the value
 # of the profile is worth on a cold open.
 RESPONSE=$(curl -fsS --max-time 5 \
   -H "Authorization: Bearer $KEY" \
-  -H "User-Agent: mengram-plugin/0.1.0" \
-  "$URL" 2>/dev/null) || exit 0
+  -H "User-Agent: mengram-plugin/0.1.3" \
+  "$URL" 2>/dev/null) || {
+  if [ ! -f "$MARKER" ]; then
+    _first_run_warn "Mengram: an API key was found but verification against $BASE failed (network issue or invalid key). Memory is OFF until this works. Check the key or see the plugin README troubleshooting table."
+  fi
+  exit 0
+}
 
-# Profile is JSON. Use jq if available (most users have it via Claude Code
-# install), otherwise fall back to a minimal Python one-liner.
+# Round-trip verified — record it so future failures stay silent.
+mkdir -p "$HOME/.mengram" 2>/dev/null && touch "$MARKER" 2>/dev/null
+
+# Profile is JSON. Use jq if available, otherwise a REAL python3/python —
+# probe with an actual import, not `command -v` (Windows Store stub).
+# /v1/profile returns the prompt in "system_prompt" (the old ".summary" key
+# never existed — this hook silently loaded nothing for months; found during
+# the 0.1.2 self-check verification).
+SUMMARY=""
 if command -v jq >/dev/null 2>&1; then
-  SUMMARY=$(printf '%s' "$RESPONSE" | jq -r '.summary // empty' 2>/dev/null)
-elif command -v python3 >/dev/null 2>&1; then
-  SUMMARY=$(printf '%s' "$RESPONSE" | python3 -c 'import json,sys
-try: print(json.loads(sys.stdin.read()).get("summary",""))
-except: pass' 2>/dev/null)
+  SUMMARY=$(printf '%s' "$RESPONSE" | jq -r '.system_prompt // .summary // empty' 2>/dev/null)
 else
-  SUMMARY=""
+  for PY in python3 python; do
+    if "$PY" -c "import json" >/dev/null 2>&1; then
+      SUMMARY=$(printf '%s' "$RESPONSE" | "$PY" -c 'import json,sys
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get("system_prompt") or d.get("summary") or "")
+except: pass' 2>/dev/null)
+      break
+    fi
+  done
 fi
 
 if [ -n "$SUMMARY" ]; then

@@ -511,7 +511,7 @@ profile = m.get_profile()             # instant system prompt
             return results
 
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
-        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "growth", "business") else ""
+        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "growth", "business", "selfhosted") else ""
         if cohere_key:
             try:
                 nonlocal _cohere_client
@@ -7474,6 +7474,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.fire_webhooks(user_id, "memory_delete", {"entity": name})
         return {"deleted": name}
 
+    @app.post("/v1/identity", tags=["Memory"])
+    async def set_identity(entity: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Pin which entity is YOU. Extraction, 'User' merging and profile generation
+        anchor to the pinned entity instead of guessing by name/fact-count heuristics.
+        Fixes identity drift when third parties are frequently co-mentioned (issue #54)."""
+        user_id = ctx.user_id
+        result = store.set_user_identity(user_id, entity, sub_user_id=sub_user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Entity '{entity}' not found")
+        return {"status": "pinned", **result}
+
     @app.post("/v1/merge_user", tags=["Memory"])
     async def merge_user_entity(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Merge 'User' entity into the primary person entity (e.g. 'Ali Baizhanov')."""
@@ -7927,6 +7938,46 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         logger.warning(f"🗑️ DELETE ALL | user={user_id[:8]} | deleted={count} entities")
         return {"status": "deleted", "count": count}
 
+    @app.delete("/v1/account", tags=["System"])
+    async def delete_account(confirm: str = Query(""), ctx: AuthContext = Depends(auth)):
+        """Permanently delete this account and ALL associated data (memories,
+        episodes, procedures, chunks, webhooks, teams you created, API keys,
+        usage history). Irreversible. Requires confirm=<your account email>.
+        An active paid subscription is canceled in Paddle first — if that
+        cancellation fails, deletion aborts so you don't keep being billed."""
+        user_id = ctx.user_id
+        email = store.get_user_email(user_id) or ""
+        if not confirm or confirm.strip().lower() != email.strip().lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Pass confirm=<your account email> to delete this account. This cannot be undone."
+            )
+
+        sub = store.get_subscription(user_id) or {}
+        paddle_sub_id = sub.get("paddle_subscription_id")
+        if paddle_sub_id and sub.get("status") in ("active", "past_due"):
+            if not PADDLE_API_KEY:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Active subscription found but billing is not configured on this server. "
+                           "Cancel the subscription first, then retry."
+                )
+            try:
+                _paddle_request("POST", f"/subscriptions/{paddle_sub_id}/cancel",
+                                {"effective_from": "immediately"})
+                logger.info(f"Subscription {paddle_sub_id} canceled for account deletion | user={user_id[:8]}")
+            except Exception as e:
+                logger.error(f"Paddle cancel failed during account deletion | user={user_id[:8]} | {e}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not cancel your subscription ({e}). "
+                           "Cancel it via the billing portal first, then retry account deletion."
+                )
+
+        counts = store.delete_account(user_id)
+        logger.warning(f"🗑️ ACCOUNT DELETED | user={user_id[:8]} | email={email} | {counts}")
+        return {"status": "deleted", "account": email, "deleted": counts}
+
     @app.get("/v1/stats", tags=["System"])
     async def stats(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Usage statistics."""
@@ -8000,15 +8051,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/episodes", tags=["Episodic Memory"])
     async def list_episodes(
-        limit: int = 20, after: str = None, before: str = None,
+        limit: int = Query(20, ge=1, le=500), offset: int = Query(0, ge=0),
+        after: str = None, before: str = None,
         sub_user_id: str = Query("default"),
         ctx: AuthContext = Depends(auth)
     ):
-        """List episodic memories (events, interactions, experiences)."""
+        """List episodic memories (events, interactions, experiences). Supports pagination."""
         user_id = ctx.user_id
-        episodes = store.get_episodes(user_id, limit=min(limit, 100),
+        episodes = store.get_episodes(user_id, limit=limit, offset=offset,
                                        after=after, before=before, sub_user_id=sub_user_id)
-        return {"episodes": episodes, "count": len(episodes)}
+        total = store.count_episodes(user_id, after=after, before=before, sub_user_id=sub_user_id)
+        return {"episodes": episodes, "count": len(episodes),
+                "total": total, "limit": limit, "offset": offset}
 
     @app.get("/v1/episodes/search", tags=["Episodic Memory"])
     async def search_episodes(
@@ -8033,14 +8087,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/procedures", tags=["Procedural Memory"])
     async def list_procedures(
-        limit: int = 20,
+        limit: int = Query(20, ge=1, le=500), offset: int = Query(0, ge=0),
         sub_user_id: str = Query("default"),
         ctx: AuthContext = Depends(auth)
     ):
-        """List procedural memories (learned workflows, skills)."""
+        """List procedural memories (learned workflows, skills). Supports pagination."""
         user_id = ctx.user_id
-        procedures = store.get_procedures(user_id, limit=min(limit, 100), sub_user_id=sub_user_id)
-        return {"procedures": procedures, "count": len(procedures)}
+        procedures = store.get_procedures(user_id, limit=limit, offset=offset, sub_user_id=sub_user_id)
+        total = store.count_procedures(user_id, sub_user_id=sub_user_id)
+        return {"procedures": procedures, "count": len(procedures),
+                "total": total, "limit": limit, "offset": offset}
 
     @app.get("/v1/procedures/search", tags=["Procedural Memory"])
     async def search_procedures(
@@ -8866,6 +8922,38 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                 plan=_json_ins.dumps(row["samples"], default=str),
                             )
                             _time.sleep(0.5)
+
+                # Weekly founder ops report — silence alarms. Accounts whose
+                # silence IS the signal: keys that never made a call (broken on
+                # install) and previously-active users gone quiet. Sent to the
+                # founder only, never to users. Mondays, deduped per ISO week.
+                if _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10:
+                    _iso_ops = _now_utc.strftime("%G-W%V")
+                    _ops_email = "the.baizhanov@gmail.com"
+                    if store.try_record_drip(_ops_email, f"founder_silence_{_iso_ops}"):
+                        try:
+                            _rep = store.get_silence_report()
+                            _broken = _rep["broken_on_install"]
+                            _quiet = _rep["gone_quiet"]
+                            if (_broken or _quiet) and os.environ.get("RESEND_API_KEY"):
+                                _lines = [f"Silence report {_iso_ops}", ""]
+                                _lines.append(f"Broken on install — signed up 48h+ ago, zero API calls ({len(_broken)}):")
+                                _lines += [f"  - {r['email']} (signed up {r['signed_up']})" for r in _broken] or ["  (none)"]
+                                _lines.append("")
+                                _lines.append(f"Gone quiet — 20+ calls before, silent 14+ days ({len(_quiet)}):")
+                                _lines += [f"  - {r['email']} (last active {r['last_active']}, {r['total_calls']} calls)" for r in _quiet] or ["  (none)"]
+                                import resend as _resend_ops
+                                _resend_ops.api_key = os.environ["RESEND_API_KEY"]
+                                _resend_ops.Emails.send({
+                                    "from": os.environ.get("EMAIL_FROM", "Mengram <noreply@mengram.io>"),
+                                    "to": [_ops_email],
+                                    "subject": f"[mengram ops] Silence report {_iso_ops}: "
+                                               f"{len(_broken)} broken installs, {len(_quiet)} gone quiet",
+                                    "text": "\n".join(_lines),
+                                })
+                                logger.info(f"📭 Founder silence report sent: {len(_broken)} broken, {len(_quiet)} quiet")
+                        except Exception as _ops_e:
+                            logger.error(f"⚠️ Founder silence report error: {_ops_e}")
 
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")

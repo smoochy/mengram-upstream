@@ -1468,6 +1468,40 @@ class CloudStore:
             )
             return cur.fetchone() is not None
 
+    def get_silence_report(self) -> dict:
+        """Founder ops report: accounts whose SILENCE is the signal.
+        - broken_on_install: signed up 48h+ ago (within 30 days), have an API
+          key, zero usage_log rows ever — the plugin/setup never worked.
+        - gone_quiet: 20+ lifetime calls, newest one 14-45 days old — real
+          users slipping away (the mnmilford pattern from the 2026-07 audit)."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT u.email, u.created_at::date AS signed_up
+                   FROM users u
+                   JOIN api_keys k ON k.user_id = u.id
+                   LEFT JOIN usage_log l ON l.user_id = u.id
+                   WHERE u.created_at < NOW() - INTERVAL '48 hours'
+                     AND u.created_at > NOW() - INTERVAL '30 days'
+                   GROUP BY u.id, u.email
+                   HAVING COUNT(l.id) = 0
+                   ORDER BY u.created_at DESC"""
+            )
+            broken = [{"email": r["email"], "signed_up": str(r["signed_up"])} for r in cur.fetchall()]
+            cur.execute(
+                """SELECT u.email, MAX(l.created_at)::date AS last_active,
+                          COUNT(l.id) AS total_calls
+                   FROM users u
+                   JOIN usage_log l ON l.user_id = u.id
+                   GROUP BY u.id, u.email
+                   HAVING COUNT(l.id) >= 20
+                      AND MAX(l.created_at) < NOW() - INTERVAL '14 days'
+                      AND MAX(l.created_at) > NOW() - INTERVAL '45 days'
+                   ORDER BY MAX(l.created_at) DESC"""
+            )
+            quiet = [{"email": r["email"], "last_active": str(r["last_active"]),
+                      "total_calls": r["total_calls"]} for r in cur.fetchall()]
+        return {"broken_on_install": broken, "gone_quiet": quiet}
+
     # Drip sequence — each step requires the previous step to have been sent.
     # Prevents sending 24h/72h/7d in a single cron burst when fixing bugs that
     # caused stale drip_emails records (e.g. the api_key.last_used_at IS NULL
@@ -1775,16 +1809,20 @@ class CloudStore:
 
     def _find_primary_person(self, user_id: str, sub_user_id: str = "default") -> Optional[tuple]:
         """Find the primary person entity for this user.
-        Prefers: full name (has space) > most facts > most recent."""
+        Prefers: explicitly pinned identity > most facts > full name (has space) > most recent.
+        Fact count ranks above full name on purpose: a third-party with a fuller
+        name (PR reviewer, tool author) must not beat the user's own entity —
+        that misroutes every "User" fact onto the wrong person (issue #54)."""
         with self._cursor() as cur:
             cur.execute(
                 """SELECT e.id, e.name, COUNT(f.id) as fact_count,
-                          CASE WHEN e.name LIKE '%% %%' THEN 1 ELSE 0 END as has_full_name
+                          CASE WHEN e.name LIKE '%% %%' THEN 1 ELSE 0 END as has_full_name,
+                          CASE WHEN e.metadata->>'is_user_identity' = 'true' THEN 1 ELSE 0 END as pinned
                    FROM entities e
                    LEFT JOIN facts f ON f.entity_id = e.id AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
                    WHERE e.user_id = %s AND e.sub_user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
                    GROUP BY e.id, e.name
-                   ORDER BY has_full_name DESC, fact_count DESC, e.updated_at DESC
+                   ORDER BY pinned DESC, fact_count DESC, has_full_name DESC, e.updated_at DESC
                    LIMIT 1""",
                 (user_id, sub_user_id)
             )
@@ -1792,6 +1830,31 @@ class CloudStore:
             if row:
                 return (str(row[0]), row[1])
             return None
+
+    def set_user_identity(self, user_id: str, entity_name: str, sub_user_id: str = "default") -> Optional[dict]:
+        """Pin an entity as the user's own identity. _find_primary_person honors
+        this flag above all heuristics, so extraction context, "User" merging and
+        profile generation anchor to the right person (issue #54)."""
+        entity_id = self.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id)
+        if not entity_id:
+            return None
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE entities SET metadata = metadata - 'is_user_identity'
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND metadata->>'is_user_identity' = 'true' AND id != %s""",
+                (user_id, sub_user_id, entity_id)
+            )
+            cur.execute(
+                """UPDATE entities
+                   SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"is_user_identity": true}'::jsonb,
+                       updated_at = NOW()
+                   WHERE id = %s
+                   RETURNING name""",
+                (entity_id,)
+            )
+            canonical_name = cur.fetchone()[0]
+        return {"entity_id": entity_id, "entity": canonical_name}
 
     def find_duplicate(self, user_id: str, name: str, sub_user_id: str = "default") -> Optional[tuple]:
         """Find existing entity that matches this name.
@@ -2396,7 +2459,9 @@ class CloudStore:
             entities = cur.fetchall()
             if not entities:
                 if primary_name:
-                    return f'The user\'s name is "{primary_name}". Always use this name instead of "User".'
+                    return (f'The user\'s name is probably "{primary_name}". Use this name instead of "User" '
+                            f'ONLY if the conversation does not indicate the user is someone else — '
+                            f'if it does, keep "User".')
                 return ""
 
             entity_ids = [str(e["id"]) for e in entities]
@@ -2424,7 +2489,9 @@ class CloudStore:
             lines = []
             # Add name hint if known
             if primary_name:
-                lines.append(f'The user\'s name is "{primary_name}". Always use "{primary_name}" instead of "User".')
+                lines.append(f'The user\'s name is probably "{primary_name}". Use "{primary_name}" instead of "User" '
+                             f'ONLY if the conversation does not indicate the user is someone else — '
+                             f'if it does, keep "User".')
 
             for e in entities:
                 eid = str(e["id"])
@@ -2471,30 +2538,121 @@ class CloudStore:
         threading.Thread(target=self.refresh_entity_overview, daemon=True).start()
 
     def delete_entity(self, user_id: str, name: str, sub_user_id: str = "default") -> bool:
-        """Delete entity and all related data."""
+        """Delete entity and all related data. Children are deleted explicitly —
+        production tables lack the ON DELETE CASCADE that schema.sql declares
+        (verified live during #39 e2e), so relying on cascades silently orphans
+        facts/knowledge/embeddings/relations."""
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s RETURNING id",
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
                 (user_id, sub_user_id, name)
             )
-            deleted = cur.fetchone() is not None
-        if deleted:
-            self.cache.invalidate(f"stats:{user_id}")
-            self._schedule_matview_refresh()
-        return deleted
+            row = cur.fetchone()
+            if not row:
+                return False
+            eid = str(row[0])
+            for child in ("facts", "knowledge", "embeddings"):
+                cur.execute(f"DELETE FROM {child} WHERE entity_id = %s", (eid,))
+            cur.execute("DELETE FROM relations WHERE source_id = %s OR target_id = %s", (eid, eid))
+            cur.execute("DELETE FROM entities WHERE id = %s", (eid,))
+        self.cache.invalidate(f"stats:{user_id}")
+        self._schedule_matview_refresh()
+        return True
 
     def delete_all_entities(self, user_id: str, sub_user_id: str = "default") -> int:
-        """Delete ALL entities (and cascade to facts, relations, knowledge, embeddings)."""
+        """Delete ALL entities with their facts, relations, knowledge, embeddings.
+        Children deleted explicitly — no cascade reliance (see delete_entity)."""
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM entities WHERE user_id = %s AND sub_user_id = %s RETURNING id",
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s",
                 (user_id, sub_user_id)
             )
-            count = cur.rowcount
+            entity_ids = [str(r[0]) for r in cur.fetchall()]
+            count = len(entity_ids)
+            if entity_ids:
+                for child in ("facts", "knowledge", "embeddings"):
+                    cur.execute(f"DELETE FROM {child} WHERE entity_id = ANY(%s::uuid[])", (entity_ids,))
+                cur.execute(
+                    "DELETE FROM relations WHERE source_id = ANY(%s::uuid[]) OR target_id = ANY(%s::uuid[])",
+                    (entity_ids, entity_ids))
+                cur.execute("DELETE FROM entities WHERE id = ANY(%s::uuid[])", (entity_ids,))
         self.cache.invalidate(f"stats:{user_id}")
         self.cache.invalidate(f"graph:{user_id}:{sub_user_id}:150")
         self._schedule_matview_refresh()
         return count
+
+    def delete_account(self, user_id: str) -> dict:
+        """Permanently delete a user account and ALL associated data across
+        every sub_user (issue #39). Irreversible.
+
+        Every table is wiped explicitly (children before parents) in one
+        transaction — no reliance on ON DELETE CASCADE, because production
+        tables created by older schema versions lack those constraints.
+        Returns per-table deleted counts."""
+        email = self.get_user_email(user_id)
+        counts = {}
+        with self._cursor() as cur:
+            # Collect API key hashes first — their 60s auth-cache entries must
+            # be invalidated after deletion, or dead keys 500 (FK-less lazy
+            # subscription insert) instead of 401 until the cache expires.
+            cur.execute("SELECT key_hash FROM api_keys WHERE user_id::text = %s", (user_id,))
+            key_hashes = [r[0] for r in cur.fetchall()]
+
+            # EVERYTHING is deleted explicitly, children before parents.
+            # Never rely on ON DELETE CASCADE here: schema.sql declares it,
+            # but production tables created by older schemas/migrations lack
+            # it (verified live during #39 e2e — entities/api_keys/usage_log
+            # survived a users-row delete).
+
+            # entities' children
+            cur.execute("SELECT id FROM entities WHERE user_id = %s", (user_id,))
+            entity_ids = [str(r[0]) for r in cur.fetchall()]
+            if entity_ids:
+                for child in ("facts", "knowledge", "embeddings"):
+                    cur.execute(f"DELETE FROM {child} WHERE entity_id = ANY(%s::uuid[])", (entity_ids,))
+                    counts[child] = cur.rowcount
+                cur.execute(
+                    "DELETE FROM relations WHERE source_id = ANY(%s::uuid[]) OR target_id = ANY(%s::uuid[])",
+                    (entity_ids, entity_ids))
+                counts["relations"] = cur.rowcount
+
+            # episodes' / procedures' / chunks' children
+            cur.execute("DELETE FROM episode_embeddings WHERE episode_id IN (SELECT id FROM episodes WHERE user_id = %s)", (user_id,))
+            counts["episode_embeddings"] = cur.rowcount
+            cur.execute("DELETE FROM procedure_embeddings WHERE procedure_id IN (SELECT id FROM procedures WHERE user_id = %s)", (user_id,))
+            counts["procedure_embeddings"] = cur.rowcount
+            cur.execute("DELETE FROM procedure_evolution WHERE procedure_id IN (SELECT id FROM procedures WHERE user_id = %s)", (user_id,))
+            counts["procedure_evolution"] = cur.rowcount
+            cur.execute("DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM conversation_chunks WHERE user_id = %s)", (user_id,))
+            counts["chunk_embeddings"] = cur.rowcount
+
+            # all user-keyed tables
+            user_tables = [
+                "entities", "episodes", "procedures", "conversation_chunks",
+                "memory_triggers", "jobs", "memory_health", "drip_emails",
+                "checkout_sessions", "webhooks", "agent_runs", "oauth_codes",
+                "team_members", "api_keys", "usage_log", "subscriptions",
+                "usage_counters",
+            ]
+            for table in user_tables:
+                cur.execute(f"DELETE FROM {table} WHERE user_id::text = %s", (user_id,))  # noqa: S608 — fixed list above
+                counts[table] = cur.rowcount
+            cur.execute("DELETE FROM teams WHERE created_by = %s", (user_id,))
+            counts["teams"] = cur.rowcount
+            if email:
+                cur.execute("DELETE FROM email_codes WHERE email = %s", (email,))
+                counts["email_codes"] = cur.rowcount
+                # drip_emails rows can predate signup (user_id NULL) — clear by email too
+                cur.execute("DELETE FROM drip_emails WHERE email = %s", (email,))
+                counts["drip_emails"] += cur.rowcount
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            counts["users"] = cur.rowcount
+        for prefix in ("stats:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
+            self.cache.invalidate(f"{prefix}{user_id}")
+        for kh in key_hashes:
+            self.cache.invalidate(f"auth:{kh[:16]}")
+        self._schedule_matview_refresh()
+        return counts
 
     # ---- MMR Diversification ----
 
@@ -3182,13 +3340,23 @@ ENTITIES AND FACTS:
 EXISTING REFLECTIONS (update if stale):
 {prev_reflections}
 
+ATTRIBUTION RULES (critical — violating these corrupts the user's memory):
+- Facts listed under an entity belong to THAT entity ONLY. Never move, copy, or merge facts between entities.
+- NEVER state or imply that two entities are the same person (no "X (Y)" aliasing, no "X, also known as Y")
+  unless a listed fact explicitly says they are the same person.
+- Do NOT attribute the user's traits, tools, or infrastructure to co-mentioned people
+  (collaborators, PR reviewers, tool authors, repo owners) — and vice versa.
+- An entity reflection may ONLY use facts listed under that same entity.
+
 Generate reflections in 3 categories:
 
 1. ENTITY REFLECTIONS — for entities with 3+ facts, write a 2-3 sentence summary.
    Focus: what/who it is, relation to the user, current status.
+   Use ONLY that entity's own facts.
 
 2. CROSS-ENTITY PATTERNS — patterns across multiple entities.
    Focus: career direction, tech preferences, behavioral patterns, relationships.
+   Patterns may reference multiple entities but must keep each fact tied to its own entity.
 
 3. TEMPORAL — what changed recently based on fact timestamps.
    Focus: new interests, shifting priorities, recent activity.
@@ -3855,13 +4023,20 @@ REFLECTIONS/PATTERNS:
             )
             by_type = {r["type"]: r["cnt"] for r in cur.fetchall()}
 
+            # Active facts use the same filter as get_all_entities_full so the
+            # stats counter reconciles with what export/list actually return.
             cur.execute(
-                """SELECT COUNT(*) FROM facts f
+                """SELECT COUNT(*) FILTER (WHERE f.archived = FALSE
+                                             AND (f.expires_at IS NULL OR f.expires_at > NOW())) AS active,
+                          COUNT(*) FILTER (WHERE f.archived = TRUE) AS archived
+                   FROM facts f
                    JOIN entities e ON e.id = f.entity_id
                    WHERE e.user_id = %s AND e.sub_user_id = %s AND e.name NOT LIKE '\\_%%'""",
                 (user_id, sub_user_id)
             )
-            facts = cur.fetchone()[0]
+            fact_counts = cur.fetchone()
+            facts = fact_counts["active"]
+            archived_facts = fact_counts["archived"]
 
             cur.execute(
                 """SELECT COUNT(*) FROM knowledge k
@@ -3908,6 +4083,7 @@ REFLECTIONS/PATTERNS:
                 "entities": entities,
                 "by_type": by_type,
                 "facts": facts,
+                "archived_facts": archived_facts,
                 "knowledge": knowledge,
                 "relations": relations,
                 "embeddings": embeddings,
@@ -4528,7 +4704,8 @@ REFLECTIONS/PATTERNS:
             return results
 
     def get_episodes(self, user_id: str, limit: int = 20, after: str = None,
-                     before: str = None, sub_user_id: str = "default") -> list[dict]:
+                     before: str = None, sub_user_id: str = "default",
+                     offset: int = 0) -> list[dict]:
         """Get episodes by time range."""
         query = """SELECT id, summary, context, outcome, participants,
                           emotional_valence, importance, metadata,
@@ -4544,8 +4721,8 @@ REFLECTIONS/PATTERNS:
         if before:
             query += " AND created_at <= %s"
             params.append(before)
-        query += " ORDER BY created_at DESC LIMIT %s"
-        params.append(limit)
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
 
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(query, params)
@@ -4566,6 +4743,23 @@ REFLECTIONS/PATTERNS:
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 })
             return results
+
+    def count_episodes(self, user_id: str, after: str = None,
+                       before: str = None, sub_user_id: str = "default") -> int:
+        """Count non-expired episodes (pagination total for /v1/episodes)."""
+        query = """SELECT COUNT(*) FROM episodes
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND (expires_at IS NULL OR expires_at > NOW())"""
+        params = [user_id, sub_user_id]
+        if after:
+            query += " AND created_at >= %s"
+            params.append(after)
+        if before:
+            query += " AND created_at <= %s"
+            params.append(before)
+        with self._cursor() as cur:
+            cur.execute(query, params)
+            return cur.fetchone()[0]
 
     def search_episodes_vector(self, user_id: str, embedding: list[float],
                                top_k: int = 5, after: str = None,
@@ -4830,7 +5024,7 @@ REFLECTIONS/PATTERNS:
             cur.execute("DELETE FROM procedure_embeddings WHERE procedure_id = %s", (procedure_id,))
 
     def get_procedures(self, user_id: str, limit: int = 20,
-                       sub_user_id: str = "default") -> list[dict]:
+                       sub_user_id: str = "default", offset: int = 0) -> list[dict]:
         """Get all current procedures for a user (latest versions only)."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -4842,8 +5036,8 @@ REFLECTIONS/PATTERNS:
                      AND is_current = TRUE
                      AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY updated_at DESC
-                   LIMIT %s""",
-                (user_id, sub_user_id, limit)
+                   LIMIT %s OFFSET %s""",
+                (user_id, sub_user_id, limit, offset)
             )
             results = []
             for row in cur.fetchall():
@@ -4863,6 +5057,18 @@ REFLECTIONS/PATTERNS:
                     "memory_type": "procedural",
                 })
             return results
+
+    def count_procedures(self, user_id: str, sub_user_id: str = "default") -> int:
+        """Count current non-expired procedures (pagination total for /v1/procedures)."""
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT COUNT(*) FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND is_current = TRUE
+                     AND (expires_at IS NULL OR expires_at > NOW())""",
+                (user_id, sub_user_id)
+            )
+            return cur.fetchone()[0]
 
     def search_procedures_vector(self, user_id: str, embedding: list[float],
                                  top_k: int = 5, sub_user_id: str = "default",
