@@ -2504,26 +2504,44 @@ class CloudStore:
         threading.Thread(target=self.refresh_entity_overview, daemon=True).start()
 
     def delete_entity(self, user_id: str, name: str, sub_user_id: str = "default") -> bool:
-        """Delete entity and all related data."""
+        """Delete entity and all related data. Children are deleted explicitly —
+        production tables lack the ON DELETE CASCADE that schema.sql declares
+        (verified live during #39 e2e), so relying on cascades silently orphans
+        facts/knowledge/embeddings/relations."""
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s RETURNING id",
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
                 (user_id, sub_user_id, name)
             )
-            deleted = cur.fetchone() is not None
-        if deleted:
-            self.cache.invalidate(f"stats:{user_id}")
-            self._schedule_matview_refresh()
-        return deleted
+            row = cur.fetchone()
+            if not row:
+                return False
+            eid = str(row[0])
+            for child in ("facts", "knowledge", "embeddings"):
+                cur.execute(f"DELETE FROM {child} WHERE entity_id = %s", (eid,))
+            cur.execute("DELETE FROM relations WHERE source_id = %s OR target_id = %s", (eid, eid))
+            cur.execute("DELETE FROM entities WHERE id = %s", (eid,))
+        self.cache.invalidate(f"stats:{user_id}")
+        self._schedule_matview_refresh()
+        return True
 
     def delete_all_entities(self, user_id: str, sub_user_id: str = "default") -> int:
-        """Delete ALL entities (and cascade to facts, relations, knowledge, embeddings)."""
+        """Delete ALL entities with their facts, relations, knowledge, embeddings.
+        Children deleted explicitly — no cascade reliance (see delete_entity)."""
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM entities WHERE user_id = %s AND sub_user_id = %s RETURNING id",
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s",
                 (user_id, sub_user_id)
             )
-            count = cur.rowcount
+            entity_ids = [str(r[0]) for r in cur.fetchall()]
+            count = len(entity_ids)
+            if entity_ids:
+                for child in ("facts", "knowledge", "embeddings"):
+                    cur.execute(f"DELETE FROM {child} WHERE entity_id = ANY(%s::uuid[])", (entity_ids,))
+                cur.execute(
+                    "DELETE FROM relations WHERE source_id = ANY(%s::uuid[]) OR target_id = ANY(%s::uuid[])",
+                    (entity_ids, entity_ids))
+                cur.execute("DELETE FROM entities WHERE id = ANY(%s::uuid[])", (entity_ids,))
         self.cache.invalidate(f"stats:{user_id}")
         self.cache.invalidate(f"graph:{user_id}:{sub_user_id}:150")
         self._schedule_matview_refresh()
@@ -2540,6 +2558,12 @@ class CloudStore:
         email = self.get_user_email(user_id)
         counts = {}
         with self._cursor() as cur:
+            # Collect API key hashes first — their 60s auth-cache entries must
+            # be invalidated after deletion, or dead keys 500 (FK-less lazy
+            # subscription insert) instead of 401 until the cache expires.
+            cur.execute("SELECT key_hash FROM api_keys WHERE user_id::text = %s", (user_id,))
+            key_hashes = [r[0] for r in cur.fetchall()]
+
             # EVERYTHING is deleted explicitly, children before parents.
             # Never rely on ON DELETE CASCADE here: schema.sql declares it,
             # but production tables created by older schemas/migrations lack
@@ -2591,6 +2615,8 @@ class CloudStore:
             counts["users"] = cur.rowcount
         for prefix in ("stats:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
             self.cache.invalidate(f"{prefix}{user_id}")
+        for kh in key_hashes:
+            self.cache.invalidate(f"auth:{kh[:16]}")
         self._schedule_matview_refresh()
         return counts
 
