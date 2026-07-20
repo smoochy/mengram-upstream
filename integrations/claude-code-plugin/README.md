@@ -19,14 +19,24 @@ Unlike `CLAUDE.md` (static) or filesystem memory (per-machine), Mengram is a **h
 # 1. Get a free API key (40 adds + 200 searches/month free)
 open https://mengram.io
 
-# 2. Set the key once
-export MENGRAM_API_KEY=om-your-key-here
+# 2. Save the key once — hooks and MCP pick it up from here in every session
+mkdir -p ~/.mengram && echo '{"api_key": "om-your-key-here"}' > ~/.mengram/config.json
 
 # 3. Install the plugin
-claude plugin install mengram
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram
 ```
 
-That's it. New sessions will start with your memory loaded; conversations will be persisted automatically.
+(`export MENGRAM_API_KEY=om-...` in your shell profile works too — the env var
+always wins over the config file.)
+
+### Try it (30 seconds)
+
+1. Tell Claude something worth remembering: *"I'm building a fintech app in React, deadline is October."*
+2. Run `/clear` — or close the terminal and start a fresh session.
+3. Ask: *"What am I building?"* — Claude answers from memory.
+
+That's the whole product. Every session from now on starts with your context loaded.
 
 ## Pricing
 
@@ -54,9 +64,10 @@ Mengram is Apache 2.0. Self-host to keep all data on your own infra.
 
 | Symptom | Fix |
 |---|---|
-| No profile loaded on session start | Check `echo $MENGRAM_API_KEY`. Hook silently no-ops without a key. |
+| No profile loaded on session start | Check `cat ~/.mengram/config.json` or `echo $MENGRAM_API_KEY` — hooks look in both (env wins). Without a key they silently no-op. |
 | Conversations not appearing in dashboard | Stop hook runs at end-of-turn — fires when Claude finishes responding, not when you press Ctrl-C |
 | MCP tools not visible | Restart Claude Code after installing the plugin. Run `claude mcp list` to verify `mengram` is connected. |
+| Windows: saves never arrive | Fixed in the current version — older hook scripts required a real `python3`, which the Microsoft Store stub isn't. Update the plugin. |
 
 ## License
 
