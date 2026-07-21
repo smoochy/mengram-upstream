@@ -5281,7 +5281,7 @@ REFLECTIONS/PATTERNS:
                 """SELECT id, name, trigger_condition, steps, entity_names,
                           success_count, fail_count, version, parent_version_id,
                           evolved_from_episode, is_current, last_used,
-                          created_at, updated_at
+                          created_at, updated_at, metadata
                    FROM procedures
                    WHERE id = %s AND user_id = %s AND sub_user_id = %s""",
                 (procedure_id, user_id, sub_user_id)
@@ -5304,12 +5304,14 @@ REFLECTIONS/PATTERNS:
                 "last_used": row["last_used"].isoformat() if row["last_used"] else None,
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                "metadata": row.get("metadata") or {},
             }
 
     def evolve_procedure(self, user_id: str, procedure_id: str,
                          new_steps: list[dict], new_trigger: str = None,
                          episode_id: str = None, change_type: str = "step_modified",
-                         diff: dict = None, sub_user_id: str = "default") -> str:
+                         diff: dict = None, metadata: dict = None,
+                         sub_user_id: str = "default") -> str:
         """Create a new version of a procedure (experience-driven evolution).
 
         Marks the old version as not current, creates a new row with version+1,
@@ -5330,13 +5332,16 @@ REFLECTIONS/PATTERNS:
                 (procedure_id,)
             )
 
-        # Create new version
+        # Create new version. Metadata carries forward (previously dropped on
+        # evolution) — callers may pass an updated dict, e.g. with accumulated
+        # preconditions from failure-driven revisions.
         new_proc_id = self.save_procedure(
             user_id=user_id,
             name=old["name"],
             trigger_condition=new_trigger or old["trigger_condition"],
             steps=new_steps,
             entity_names=old["entity_names"],
+            metadata=metadata if metadata is not None else (old.get("metadata") or None),
             version=new_version,
             parent_version_id=procedure_id,
             evolved_from_episode=episode_id,

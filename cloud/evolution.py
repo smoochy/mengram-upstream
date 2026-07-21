@@ -61,6 +61,12 @@ Analyze what went wrong and produce an improved version of the procedure.
 You may add steps, remove steps, reorder steps, or modify existing steps.
 Keep the procedure practical and concise.
 
+CRITICAL — name the violated assumption. The step that failed is rarely the
+root cause; the root cause is a hidden assumption that turned out false
+(e.g. "the migration had already run", "the env var was set", "the API was
+reachable"). State it as a specific, checkable belief — this is what
+prevents the same failure from repeating, not the step reshuffle.
+
 Return ONLY valid JSON (no markdown fences):
 {{
   "new_steps": [
@@ -70,6 +76,8 @@ Return ONLY valid JSON (no markdown fences):
   "new_trigger": "updated trigger condition or null if unchanged",
   "change_type": "step_added|step_removed|step_modified|step_reordered",
   "change_description": "Brief description of what changed and why",
+  "violated_assumption": "The specific belief that turned out false, e.g. 'the database migration had already been applied'",
+  "precondition_check": "A concrete check to perform BEFORE running this procedure next time, e.g. 'verify alembic current matches head'",
   "diff": {{
     "added": ["description of added steps"],
     "removed": ["description of removed steps"],
@@ -185,7 +193,25 @@ class EvolutionEngine:
             logger.error(f"Evolution LLM call failed: {e}")
             return None
 
-        # 5. Create evolved procedure
+        # 5. Create evolved procedure. The violated assumption travels in two
+        # places: the evolution record (history — WHY this revision exists)
+        # and the procedure's metadata.preconditions (recall — what to CHECK
+        # before trusting this procedure next time).
+        diff = result.get("diff", {}) or {}
+        assumption = (result.get("violated_assumption") or "").strip()
+        precondition = (result.get("precondition_check") or "").strip()
+        if assumption:
+            diff["violated_assumption"] = assumption
+        if precondition:
+            diff["precondition_added"] = precondition
+
+        new_metadata = dict(proc.get("metadata") or {})
+        if precondition:
+            preconditions = list(new_metadata.get("preconditions") or [])
+            if precondition not in preconditions:
+                preconditions.append(precondition)
+            new_metadata["preconditions"] = preconditions[-10:]  # keep the last 10
+
         try:
             new_proc_id = self.store.evolve_procedure(
                 user_id=user_id,
@@ -194,7 +220,8 @@ class EvolutionEngine:
                 new_trigger=result.get("new_trigger"),
                 episode_id=episode_id,
                 change_type=result.get("change_type", "step_modified"),
-                diff=result.get("diff", {}),
+                diff=diff,
+                metadata=new_metadata,
                 sub_user_id=sub_user_id,
             )
 
