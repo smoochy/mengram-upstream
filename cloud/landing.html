@@ -9,8 +9,8 @@
     <!-- Privacy-friendly analytics by Plausible -->
     <script async src="https://plausible.io/js/pa-0hhr-Yt01J5NdtKDFK9iN.js"></script>
     <script>window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()</script>
-    <title>Mengram — Your AI Finally Knows Who You Are. Persistent memory for Claude, ChatGPT, Cursor</title>
-    <meta name="description" content="Build a personal AI assistant that remembers your projects, preferences, decisions, and daily context — across every conversation and device. Mengram is the open-source memory layer with hybrid retrieval, temporal decay, and importance weighting. Free tier, $5/mo, Apache 2.0. Mem0 / Letta / Zep alternative.">
+    <title>Mengram — AI Memory That Learns Your Workflows. One memory across Claude Code, Cursor, Codex</title>
+    <meta name="description" content="AI memory that learns how you work. Mengram stores facts, events, and procedural workflows that evolve from successes and failures — one memory across Claude Code, Cursor, Codex, and ChatGPT. Import your existing Claude Code history in one command. Free tier, $5/mo. Mem0 / Letta / Zep / claude-mem alternative.">
     <meta name="keywords" content="Claude Managed Agents memory, Managed Agents MCP, Claude Code memory, Claude Code hooks, Claude Code auto-save, Claude Code persistent memory, Claude Code plugin, Claude Code marketplace plugin, claude plugin install mengram, claude-plugins-community, AI memory API, LLM memory, Mem0 alternative, MCP memory server, Claude Desktop memory, episodic memory, procedural memory, cognitive profile, knowledge graph, AI agents, auto-recall, claude-mem alternative, AI agent memory, Claude Code plugins, MCP server Claude, Cursor memory, Windsurf memory, RAG alternative, AI memory open source, Vapi memory, voice agent memory, Vapi cross-call memory, Retell memory, Pipecat memory, voice AI memory">
     <meta name="google-site-verification" content="AgH6oyB88LhyyfEqVQn9XnT1mPiFpgCX5GFVJMC5yEs">
     <meta name="author" content="Ali Baizhanov">
@@ -20,8 +20,8 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mengram.io">
-    <meta property="og:title" content="Mengram — Your AI Finally Knows Who You Are. Persistent memory for Claude, ChatGPT, Cursor">
-    <meta property="og:description" content="Your AI finally knows who you are. Build a personal AI assistant that remembers your projects, preferences, decisions, and daily context across every conversation and device. Free tier, $5/mo, Apache 2.0.">
+    <meta property="og:title" content="Mengram — AI Memory That Learns Your Workflows. One memory across Claude Code, Cursor, Codex">
+    <meta property="og:description" content="Your agent redoes the same work from scratch every session. Mengram remembers your projects and your workflows — how you deploy, debug, and ship — refined from successes and failures. Free tier, $5/mo.">
     <meta property="og:site_name" content="Mengram">
     <meta property="og:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta property="og:image:width" content="1200">
@@ -32,7 +32,7 @@
     <meta name="twitter:site" content="@mengram_io">
     <meta name="twitter:creator" content="@alibaizhanov">
     <meta name="twitter:title" content="Mengram — Your AI Finally Knows Who You Are. Persistent memory for Claude, ChatGPT, Cursor">
-    <meta name="twitter:description" content="Your AI finally knows who you are. Personal AI memory across Claude, ChatGPT, Cursor. Free tier, $5/mo. Apache 2.0.">
+    <meta name="twitter:description" content="AI memory that learns your workflows — refined from successes and failures. One memory across Claude Code, Cursor, Codex. Free tier, $5/mo.">
     <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta name="twitter:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
@@ -1884,8 +1884,8 @@
                 <span class="pulse"></span>
                 Open Source · Apache 2.0
             </div>
-            <h1 class="reveal" style="transition-delay:0.1s">Your AI finally<br><span class="brand">knows who you are.</span></h1>
-            <p class="reveal" style="transition-delay:0.2s">Build a personal AI assistant that remembers your projects, preferences, decisions, and daily context — across every conversation, every tool, every device. Mengram is the memory layer. $5/mo. Apache 2.0.</p>
+            <h1 class="reveal" style="transition-delay:0.1s">AI memory that learns<br><span class="brand">how you work.</span></h1>
+            <p class="reveal" style="transition-delay:0.2s">Your agent redoes the same work from scratch every session. Mengram remembers your projects <em>and your workflows</em> — how you deploy, debug, and ship — refined every time you succeed or fail. One memory across Claude Code, Cursor, Codex, and ChatGPT.</p>
             <div class="terminal reveal" style="transition-delay:0.3s">
                 <div class="terminal-header">
                     <span class="terminal-dot red"></span>
@@ -1916,11 +1916,11 @@
                 <p class="install-prompt-sub">Persistent memory that survives <code>/clear</code>, machine switches, and team handoffs. Hooks auto-load your profile on session start and capture conversations at end-of-turn. MCP server gives Claude 30 memory tools out of the box.</p>
                 <div class="code-box install-prompt-box">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre>export MENGRAM_API_KEY=om-your-key-here
+<pre>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key-here"}' > ~/.mengram/config.json
 claude plugin marketplace add alibaizhanov/mengram
 claude plugin install mengram@mengram</pre>
                 </div>
-                <p class="install-prompt-fineprint"><a href="/#signup">Grab a free key</a> (40 adds + 200 searches/month, no card). Source: <a href="https://github.com/alibaizhanov/mengram/tree/main/integrations/claude-code-plugin">github.com/alibaizhanov/mengram</a>.</p>
+                <p class="install-prompt-fineprint"><a href="/#signup">Grab a free key</a> (40 adds + 200 searches/month, no card). Skip the cold start: <code>pip install mengram-ai && mengram import claude-code</code> feeds in your existing session history — memory knows your projects from minute one. Source: <a href="https://github.com/alibaizhanov/mengram/tree/main/integrations/claude-code-plugin">github.com/alibaizhanov/mengram</a>.</p>
             </div>
         </section>
 
