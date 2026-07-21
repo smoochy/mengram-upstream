@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.27.0 — 2026-07-21
+
+### Added
+- `mengram try` — zero-account, local-only preview of what memory would
+  know: scans your Claude Code history on-device (nothing uploaded) and
+  shows projects, stack, and detected workflow patterns. The first taste
+  of Mengram now comes before signup, not after.
+
+
 ## 2.26.1 — 2026-07-21
 
 ### Improved

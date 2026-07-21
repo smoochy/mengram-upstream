@@ -1338,6 +1338,38 @@ def cmd_api(args):
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
+def cmd_try(args):
+    """Local, zero-account preview of what Mengram memory would know."""
+    from importer import analyze_claude_code_sessions
+
+    print("🧠 Scanning your local Claude Code history (nothing leaves your machine)...\n")
+    report = analyze_claude_code_sessions()
+    if not report:
+        print("No Claude Code sessions found in ~/.claude/projects/")
+        print("Use Claude Code for a few sessions, then run `mengram try` again —")
+        print("or start fresh: mengram setup  (free, 30 seconds)")
+        return
+
+    span = ""
+    if report["first_date"] and report["last_date"]:
+        span = f" ({report['first_date']} → {report['last_date']})"
+    n_projects = len(report["projects"])
+    print(f"Scanned {report['sessions']} sessions across {n_projects} projects{span}.\n")
+    print("If this were memory, your AI would already know:\n")
+
+    proj_str = ", ".join(f"{name} ({n})" for name, n in report["projects"][:4])
+    print(f"  Projects:   {proj_str}")
+    if report["tech"]:
+        print(f"  Your stack: {', '.join(report['tech'])}")
+    if report["patterns"]:
+        print("  Workflow patterns detected:")
+        for name, count in report["patterns"]:
+            print(f"    ⚙ {name}   (seen in {count} session{'s' if count != 1 else ''})")
+    print("\nRight now, every new session starts from zero and relearns all of this.\n")
+    print("→ Make it permanent:  mengram setup            (free, 30 seconds)")
+    print("→ Then feed it in:    mengram import claude-code")
+
+
 def cmd_import(args):
     """Import existing data into memory"""
     import_type = args.import_type
@@ -1594,6 +1626,9 @@ def main():
     p_api.add_argument("--host", default="0.0.0.0", help="Host (default: 0.0.0.0)")
     p_api.add_argument("--port", type=int, default=8420, help="Port (default: 8420)")
 
+    # try — zero-account local preview
+    sub.add_parser("try", help="Preview what Mengram memory would know — local only, no account needed")
+
     # import
     p_import = sub.add_parser("import", help="Import existing data into memory")
     import_sub = p_import.add_subparsers(dest="import_type")
@@ -1691,6 +1726,8 @@ def main():
         cmd_rules(args)
     elif args.command == "api":
         cmd_api(args)
+    elif args.command == "try":
+        cmd_try(args)
     elif args.command == "import":
         cmd_import(args)
     elif args.command == "hook":
