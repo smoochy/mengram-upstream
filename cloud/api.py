@@ -1934,6 +1934,7 @@ m.add("I love hiking in the mountains")</code></pre>
         pages = [
             # Core — highest priority
             ("https://mengram.io", "1.0", "weekly"),
+            ("https://mengram.io/for-agents", "0.9", "weekly"),
             # /pricing removed — 301 redirects to /#pricing (no duplicate content)
             # Claude Code — high SEO value
             ("https://mengram.io/vs/claude-mem", "0.9", "weekly"),
@@ -2007,6 +2008,12 @@ m.add("I love hiking in the mountains")</code></pre>
     async def privacy():
         """Privacy Policy."""
         p = Path(__file__).parent / "privacy.html"
+        return p.read_text(encoding="utf-8")
+
+    @app.get("/for-agents", response_class=HTMLResponse)
+    async def for_agents():
+        """Memory API for agent builders — segment (b) landing."""
+        p = Path(__file__).parent / "for-agents.html"
         return p.read_text(encoding="utf-8")
 
     @app.get("/refund", response_class=HTMLResponse)

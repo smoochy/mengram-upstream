@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory API for AI Agent Products — Mengram</title>
+    <meta name="description" content="Give every user of your agent a memory. One API key, isolated memory per user_id: semantic facts, episodic events, and procedural workflows that evolve from failures. REST + MCP + webhooks, 23 languages, self-hostable. Mem0 alternative for agent builders.">
+    <meta name="keywords" content="memory api for ai agents, multi user memory llm, agent memory backend, mem0 alternative api, memory layer for agents, llm memory api, procedural memory api, crewai memory, langchain memory api">
+    <meta property="og:title" content="Memory API for AI Agent Products — Mengram">
+    <meta property="og:description" content="Isolated memory per user_id: facts, events, and workflows that evolve from failures. REST + MCP + webhooks. Free tier, self-hostable.">
+    <link rel="canonical" href="https://mengram.io/for-agents">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        :root { --bg:#0a0a12; --bg2:#12121e; --border:#1a1a2e; --text:#e8e8f0; --text2:#c8c8d8; --text3:#8888a0; --accent:#a855f7; --green:#34d399; }
+        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+        .wrap { max-width:880px; margin:0 auto; padding:0 24px; }
+        header { padding:20px 0; border-bottom:1px solid var(--border); }
+        header .wrap { display:flex; justify-content:space-between; align-items:center; }
+        header a { color:var(--text2); text-decoration:none; font-size:14px; margin-left:18px; }
+        header a:hover { color:var(--text); }
+        .logo { font-weight:700; font-size:18px; color:var(--text); margin-left:0 !important; }
+        .logo span { color:var(--accent); }
+        .hero { padding:72px 0 40px; text-align:center; }
+        h1 { font-size:42px; line-height:1.15; font-weight:800; letter-spacing:-0.02em; }
+        h1 .brand { color:var(--accent); }
+        .sub { color:var(--text2); font-size:18px; max-width:640px; margin:18px auto 0; }
+        .cta-row { margin-top:28px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+        .btn { display:inline-block; padding:12px 26px; border-radius:10px; text-decoration:none; font-weight:600; font-size:15px; }
+        .btn-p { background:var(--accent); color:#fff; }
+        .btn-s { border:1px solid var(--border); color:var(--text2); }
+        section { padding:36px 0; }
+        h2 { font-size:26px; margin-bottom:16px; letter-spacing:-0.01em; }
+        pre { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px; overflow-x:auto; font-size:13.5px; line-height:1.55; color:var(--text2); }
+        code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin-top:8px; }
+        .card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px; }
+        .card h3 { font-size:16px; margin-bottom:6px; }
+        .card p { color:var(--text3); font-size:14px; }
+        .foot { border-top:1px solid var(--border); padding:28px 0; color:var(--text3); font-size:13px; text-align:center; }
+        .k { color:var(--accent); }
+        .hl { color:var(--green); }
+        @media (max-width:600px){ h1{font-size:30px;} }
+    </style>
+</head>
+<body>
+<header><div class="wrap">
+    <a class="logo" href="/">Men<span>gram</span></a>
+    <nav>
+        <a href="https://docs.mengram.io">Docs</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/dashboard">Console</a>
+        <a href="/#signup">Get API Key</a>
+    </nav>
+</div></header>
+
+<div class="hero wrap">
+    <h1>Give every user of your agent<br><span class="brand">a memory.</span></h1>
+    <p class="sub">One API key, isolated memory per <code>user_id</code>. Your agents get semantic facts, episodic events, and procedural workflows that <strong>evolve when they fail</strong> — extraction, dedup, and contradiction-handling run server-side.</p>
+    <div class="cta-row">
+        <a class="btn btn-p" href="/#signup">Get a free API key</a>
+        <a class="btn btn-s" href="https://docs.mengram.io/api-reference">API reference</a>
+    </div>
+</div>
+
+<section class="wrap">
+    <h2>Quickstart — memory per end-user in 10 lines</h2>
+    <pre><code><span class="k">pip install</span> mengram-ai
+
+<span class="k">from</span> mengram <span class="k">import</span> Mengram
+m = Mengram(api_key=<span class="hl">"om-..."</span>)
+
+<span class="k"># each of YOUR users gets an isolated memory store</span>
+m.add([{<span class="hl">"role"</span>: <span class="hl">"user"</span>, <span class="hl">"content"</span>: <span class="hl">"I prefer email, and my last order arrived damaged"</span>}],
+      user_id=<span class="hl">"customer-4812"</span>)
+
+<span class="k"># later — any session, any of your agents</span>
+m.search(<span class="hl">"how should I contact this customer?"</span>, user_id=<span class="hl">"customer-4812"</span>)
+<span class="k"># → prefers email; recent damaged-order incident</span></code></pre>
+    <p style="color:var(--text3); font-size:14px; margin-top:10px;">REST, Python, and JavaScript SDKs. Same isolation over MCP for tool-native agents.</p>
+</section>
+
+<section class="wrap">
+    <h2>Built for agent builders</h2>
+    <div class="grid">
+        <div class="card"><h3>Multi-user isolation</h3><p>Pass <code>user_id</code> — every end-user gets isolated facts, events, workflows, and a cognitive profile. One key, thousands of users.</p></div>
+        <div class="card"><h3>Procedural memory</h3><p>Workflows with version history that evolve from failures: revisions record the violated assumption and derive preconditions your agent checks before trusting a workflow.</p></div>
+        <div class="card"><h3>Server-side extraction</h3><p>Send raw conversation turns — facts, events, and workflows are extracted, deduplicated, and contradiction-checked for you. No prompt engineering.</p></div>
+        <div class="card"><h3>Webhooks</h3><p>Subscribe to memory events (updates, contradictions) and drive your own flows when the memory changes.</p></div>
+        <div class="card"><h3>23 languages</h3><p>Multilingual embeddings + reranking — your users can talk to your agent in Russian, Chinese, Spanish; recall works.</p></div>
+        <div class="card"><h3>Self-hostable</h3><p>Apache 2.0 core. Run it on your infra when compliance demands it; same API surface.</p></div>
+    </div>
+</section>
+
+<section class="wrap">
+    <h2>Drop-in for your stack</h2>
+    <div class="grid">
+        <div class="card"><h3>LangChain</h3><p><code>MengramRetriever</code> + chat message history — <code>pip install langchain-mengram</code></p></div>
+        <div class="card"><h3>CrewAI</h3><p><code>memory=MengramMemory(api_key=...)</code> on any Crew — agents get recall and remember tools.</p></div>
+        <div class="card"><h3>MCP</h3><p>30 memory tools over streamable HTTP at <code>mengram.io/mcp</code> — Claude, Cursor, or your own MCP client. Listed in the official MCP registry.</p></div>
+        <div class="card"><h3>REST</h3><p>Plain HTTP for everything else — <a style="color:var(--accent)" href="https://docs.mengram.io/api-reference">full reference</a>.</p></div>
+    </div>
+</section>
+
+<section class="wrap">
+    <h2>Pricing that starts free</h2>
+    <p style="color:var(--text2)">Free: 40 adds + 200 searches/month — enough to wire up and demo. Production tiers from $19 (10k searches) to $99 (30k searches, unlimited sub-users). <a style="color:var(--accent)" href="/#pricing">Full pricing →</a></p>
+</section>
+
+<div class="foot wrap">
+    Mengram — AI memory that learns how you work. <a style="color:var(--accent)" href="/">Home</a> · <a style="color:var(--accent)" href="https://github.com/alibaizhanov/mengram">GitHub</a>
+</div>
+</body>
+</html>
