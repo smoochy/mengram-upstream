@@ -720,6 +720,16 @@ Be strict — only include entities that directly answer or relate to the query.
         days_in_month = calendar.monthrange(today.year, today.month)[1]
         return (days_in_month - today.day + 1) * 86400
 
+    def _quality_label(top_score: float) -> str:
+        """Scale-aware retrieval quality. query_score mixes two scales
+        (rerank/cosine 0-1 vs raw RRF topping out ~0.05), so raw thresholds
+        misread healthy RRF results as failures — use this label instead."""
+        if top_score >= 0.3:
+            return "strong"
+        if top_score >= 0.02:
+            return "weak"
+        return "no_match"
+
     def use_quota(ctx: AuthContext, action: str, count: int = 1):
         """Atomically check quota AND increment usage in one operation.
         Uses Redis counter cache for fast-reject before hitting PostgreSQL."""
@@ -7117,7 +7127,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             top_score = float(cached[0]["score"]) if cached and "score" in cached[0] else 0.0
             store.log_usage(user_id, "search",
                             query_score=top_score,
-                            query_language=_detect_query_language(req.query))
+                            query_language=_detect_query_language(req.query),
+                            result_quality=_quality_label(top_score))
             return {"results": cached}
 
         embedder = get_embedder()
@@ -7211,7 +7222,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         top_score = float(results[0]["score"]) if results and "score" in results[0] else 0.0
         store.log_usage(user_id, "search",
                         query_score=top_score,
-                        query_language=_detect_query_language(req.query))
+                        query_language=_detect_query_language(req.query),
+                        result_quality=_quality_label(top_score))
         # increment already done atomically in use_quota above
 
         # Quality label — strong/weak/no_match — so MCP clients and voice
@@ -7222,12 +7234,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # raw RRF for free/starter). Rerank outputs 0-1 cosine-style scores;
         # raw RRF tops out around 0.05. We use overlapping but distinct
         # bands so callers can decide whether to trust a "weak" result.
-        if top_score >= 0.3:
-            result_quality = "strong"
-        elif top_score >= 0.02:
-            result_quality = "weak"
-        else:
-            result_quality = "no_match"
+        result_quality = _quality_label(top_score)
 
         response = {
             "results": results,
@@ -8252,7 +8259,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             top_score = float(sem[0]["score"]) if sem and "score" in sem[0] else 0.0
             store.log_usage(user_id, "search_all",
                             query_score=top_score,
-                            query_language=_detect_query_language(req.query))
+                            query_language=_detect_query_language(req.query),
+                            result_quality=_quality_label(top_score))
             return cached
 
         embedder = get_embedder()
@@ -8377,7 +8385,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         top_score = float(semantic[0]["score"]) if semantic and "score" in semantic[0] else 0.0
         store.log_usage(user_id, "search_all",
                         query_score=top_score,
-                        query_language=_detect_query_language(req.query))
+                        query_language=_detect_query_language(req.query),
+                        result_quality=_quality_label(top_score))
         # increment already done in use_quota above
         if not any(result.get(k) for k in ("semantic", "episodic", "procedural", "chunks")):
             try:
@@ -8952,13 +8961,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             _rep = store.get_silence_report()
                             _broken = _rep["broken_on_install"]
                             _quiet = _rep["gone_quiet"]
-                            if (_broken or _quiet) and os.environ.get("RESEND_API_KEY"):
+                            _half = _rep.get("half_wired", [])
+                            if (_broken or _quiet or _half) and os.environ.get("RESEND_API_KEY"):
                                 _lines = [f"Silence report {_iso_ops}", ""]
                                 _lines.append(f"Broken on install — signed up 48h+ ago, zero API calls ({len(_broken)}):")
                                 _lines += [f"  - {r['email']} (signed up {r['signed_up']})" for r in _broken] or ["  (none)"]
                                 _lines.append("")
                                 _lines.append(f"Gone quiet — 20+ calls before, silent 14+ days ({len(_quiet)}):")
                                 _lines += [f"  - {r['email']} (last active {r['last_active']}, {r['total_calls']} calls)" for r in _quiet] or ["  (none)"]
+                                _lines.append("")
+                                _lines.append(f"Half-wired — recall integrated, capture never ({len(_half)}; searching an empty vault):")
+                                _lines += [f"  - {r['email']} ({r['searches']} searches / 14d, zero entities)" for r in _half] or ["  (none)"]
                                 import resend as _resend_ops
                                 _resend_ops.api_key = os.environ["RESEND_API_KEY"]
                                 _resend_ops.Emails.send({

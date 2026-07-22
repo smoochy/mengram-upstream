@@ -1139,6 +1139,13 @@ class CloudStore:
                 ADD COLUMN IF NOT EXISTS query_score FLOAT,
                 ADD COLUMN IF NOT EXISTS query_language VARCHAR(8)
             """)
+            # query_score mixes two scales (cosine ~0.3-0.9 vs RRF ~0.017-0.05
+            # depending on code path) — result_quality is the scale-aware label
+            # (strong/weak/no_match) so analytics never misread RRF as failure.
+            cur.execute("""
+                ALTER TABLE usage_log
+                ADD COLUMN IF NOT EXISTS result_quality VARCHAR(10)
+            """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_usage_search_health
                 ON usage_log(user_id, created_at DESC)
@@ -1500,7 +1507,23 @@ class CloudStore:
             )
             quiet = [{"email": r["email"], "last_active": str(r["last_active"]),
                       "total_calls": r["total_calls"]} for r in cur.fetchall()]
-        return {"broken_on_install": broken, "gone_quiet": quiet}
+            # half_wired: integrated recall but never capture — searching an
+            # empty vault to quota exhaustion (found 2026-07-22: two accounts
+            # burned 600+200 searches over zero entities). Warm rescue leads.
+            cur.execute(
+                """SELECT u.email,
+                          COUNT(l.id) FILTER (WHERE l.action IN ('search','search_all')) AS searches
+                   FROM users u
+                   JOIN usage_log l ON l.user_id = u.id
+                       AND l.created_at > NOW() - INTERVAL '14 days'
+                   WHERE NOT EXISTS (SELECT 1 FROM entities e WHERE e.user_id = u.id)
+                   GROUP BY u.id, u.email
+                   HAVING COUNT(l.id) FILTER (WHERE l.action IN ('search','search_all')) > 50
+                      AND COUNT(l.id) FILTER (WHERE l.action = 'add') = 0
+                   ORDER BY 2 DESC"""
+            )
+            half_wired = [{"email": r["email"], "searches": r["searches"]} for r in cur.fetchall()]
+        return {"broken_on_install": broken, "gone_quiet": quiet, "half_wired": half_wired}
 
     # Drip sequence — each step requires the previous step to have been sent.
     # Prevents sending 24h/72h/7d in a single cron burst when fixing bugs that
@@ -4268,15 +4291,17 @@ REFLECTIONS/PATTERNS:
     # ---- Usage tracking ----
 
     def log_usage(self, user_id: str, action: str, tokens: int = 0,
-                  query_score: float = None, query_language: str = None):
+                  query_score: float = None, query_language: str = None,
+                  result_quality: str = None):
         """Log API usage. Optional query_score + query_language let search
-        callers feed Memory Health monitoring (v2.22)."""
+        callers feed Memory Health monitoring (v2.22). result_quality is the
+        scale-aware label (query_score mixes cosine and RRF scales)."""
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO usage_log
-                       (user_id, action, tokens_used, query_score, query_language)
-                   VALUES (%s, %s, %s, %s, %s)""",
-                (user_id, action, tokens, query_score, query_language)
+                       (user_id, action, tokens_used, query_score, query_language, result_quality)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (user_id, action, tokens, query_score, query_language, result_quality)
             )
 
     # ---- Subscriptions ----
