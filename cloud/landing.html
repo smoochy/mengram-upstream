@@ -1913,7 +1913,7 @@
             <div class="install-prompt-card">
                 <span class="install-prompt-eyebrow">New · Claude Code plugin</span>
                 <h2 class="install-prompt-title">Two commands. Memory in every Claude Code session.</h2>
-                <p class="install-prompt-sub">Persistent memory that survives <code>/clear</code>, machine switches, and team handoffs. Hooks auto-load your profile on session start and capture conversations at end-of-turn. MCP server gives Claude 30 memory tools out of the box.</p>
+                <p class="install-prompt-sub">Persistent memory that survives <code>/clear</code>, <strong>auto-compaction</strong>, machine switches, and team handoffs. The SessionStart hook re-injects your context after every compact; the Stop hook captures conversations at end-of-turn. MCP server gives Claude 30 memory tools out of the box.</p>
                 <div class="code-box install-prompt-box">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key-here"}' > ~/.mengram/config.json

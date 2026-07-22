@@ -1945,6 +1945,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/vs/supermemory", "0.8", "weekly"),
             # Blog — high SEO value
             ("https://mengram.io/blog", "0.8", "weekly"),
+            ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2258,6 +2259,50 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "claude-code-compaction-context-loss": {
+            "slug": "claude-code-compaction-context-loss",
+            "title": "Claude Code Forgets Everything After Compaction. Here's the Fix That Survives It",
+            "date": "July 22, 2026",
+            "date_iso": "2026-07-22",
+            "read_time": "6",
+            "tags": ["Claude Code", "Guide"],
+            "excerpt": "Auto-compact wipes your working context — decisions, constraints, even CLAUDE.md guidance drift away. Why it happens, what Anthropic's issue tracker says, and how to make context survive compaction automatically.",
+            "seo_title": "Claude Code Forgets Context After Compaction — the Fix That Survives /compact (2026)",
+            "seo_description": "Claude Code auto-compaction erases working context: decisions, constraints, project state. 300+ upvotes across GitHub issues confirm it. Here's how persistent memory reloads your context automatically after every compact, /clear, and restart.",
+            "seo_keywords": "claude code forgets context, claude code compaction, claude code auto-compact loses context, does claude code remember between sessions, claude code forgets CLAUDE.md, survive compact claude code, claude code context loss fix, claude code persistent memory",
+            "content_html": """
+<h2>The problem: compaction is amnesia by design</h2>
+<p>When a Claude Code session approaches its context limit, <strong>auto-compact</strong> summarizes the conversation and throws away the original. It has to — context windows are finite. But what survives is a summary written under token pressure, and what dies is exactly the stuff you needed: the decision you made an hour ago, the constraint you stated once, the approach you already rejected twice.</p>
+<p>This isn't a niche complaint. On Anthropic's own issue tracker: <a href="https://github.com/anthropics/claude-code/issues/17428">enhanced /compact with restorable summaries</a> (114 upvotes), <a href="https://github.com/anthropics/claude-code/issues/27242">no way to review context after compaction</a> (79), <a href="https://github.com/anthropics/claude-code/issues/7502">auto-compact erases chat history without warning</a> (35), and — the quiet killer — <a href="https://github.com/anthropics/claude-code/issues/6354">Claude forgets CLAUDE.md guidance after compaction</a> (28). Hundreds of developers voting on the same wound.</p>
+
+<h2>Why CLAUDE.md doesn't save you</h2>
+<p>The standard advice is "put important context in CLAUDE.md." It helps — until it doesn't. CLAUDE.md is static: it holds what you remembered to write down last week, not the decision from forty minutes ago that compaction just ate. And per the issue above, even CLAUDE.md guidance <em>itself</em> loses force after heavy compaction as the summary crowds it out.</p>
+
+<h2>What actually survives: memory outside the context window</h2>
+<p>The durable fix is structural: keep the important state <strong>outside</strong> the thing that gets compacted, and re-inject it on every fresh start. Claude Code has the exact machinery for this — the <code>SessionStart</code> hook fires not just on startup, but also on <code>/clear</code>, resume, <em>and after compaction</em>.</p>
+<p>That's how the <a href="https://mengram.io">Mengram</a> plugin makes context survive compaction:</p>
+<ul>
+<li><strong>During the session</strong>, a Stop hook captures each turn in the background — facts, decisions, and workflows get extracted into persistent memory (API keys and tokens are redacted client-side).</li>
+<li><strong>After compaction</strong> (or /clear, or a new session, or a different machine), the SessionStart hook reloads your cognitive profile — who you are, what you're building, what you decided — as fresh context. The summary can be lossy; the memory isn't.</li>
+<li><strong>On every prompt</strong>, relevant past context is recalled and injected, so "how did we deploy this again?" gets answered from memory instead of re-derived.</li>
+</ul>
+
+<h2>Setup (60 seconds)</h2>
+<pre><code># 1. Free API key: https://mengram.io — save it once
+mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+
+# 2. Install the plugin
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram
+
+# 3. Optional: feed in your existing session history (secrets redacted locally)
+pip install mengram-ai && mengram import claude-code</code></pre>
+<p>Test it: tell Claude something about your project, run <code>/compact</code> (or <code>/clear</code>), and ask again. The context comes back — not from the summary, but from memory.</p>
+
+<h2>What this doesn't fix</h2>
+<p>Honesty section: no external memory restores the <em>full</em> pre-compact transcript — that's gone, and tools claiming otherwise are re-summarizing too. What persistent memory changes is <strong>which</strong> things survive: instead of whatever the compactor kept under pressure, you keep structured facts, decisions, and workflows extracted while they were fresh. For the transcript itself, vote on <a href="https://github.com/anthropics/claude-code/issues/17428">#17428</a> — file-backed summaries would compose beautifully with external memory.</p>
+""",
+        },
         "what-is-ai-memory": {
             "slug": "what-is-ai-memory",
             "title": "What is AI Memory? A Developer's Guide to Persistent Memory for LLMs",
