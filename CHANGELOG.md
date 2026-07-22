@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.27.0 — 2026-07-21
+
+### Added
+- `mengram try` — zero-account, local-only preview of what memory would
+  know: scans your Claude Code history on-device (nothing uploaded) and
+  shows projects, stack, and detected workflow patterns. The first taste
+  of Mengram now comes before signup, not after.
+
+
+## 2.26.1 — 2026-07-21
+
+### Improved
+- `mengram import claude-code` now shows what memory actually learned after
+  extraction (entities/facts/episodes/workflows + up to 3 learned workflow
+  names) instead of a bare counter, and reports honestly when sessions were
+  deduplicated against existing memory.
+
+
 ## 2.26.0 — 2026-07-20
 
 ### Added
