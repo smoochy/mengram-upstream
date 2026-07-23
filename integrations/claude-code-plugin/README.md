@@ -1,6 +1,6 @@
 # Mengram Claude Code plugin
 
-Persistent memory for Claude Code that survives `/clear`, machine switches, and team handoffs.
+Persistent memory for Claude Code that survives `/clear`, **auto-compaction**, machine switches, and team handoffs. The SessionStart hook fires after every compact and re-injects your context — the summary can be lossy, the memory isn't.
 
 Unlike `CLAUDE.md` (static) or filesystem memory (per-machine), Mengram is a **hosted memory backend** with hybrid retrieval (vector + BM25 + RRF), temporal decay, and cross-device sync. Same memory in Claude Code on your laptop, on your work machine, on Cursor, on ChatGPT.
 

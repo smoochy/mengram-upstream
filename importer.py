@@ -629,3 +629,113 @@ def import_claude_code(
     result.entities_created = list(set(result.entities_created))
     result.duration_seconds = time.time() - start
     return result
+
+
+# ---------------------------------------------------------------------------
+# `mengram try` — local, zero-account preview of what memory would know.
+# Pure heuristics (no LLM, no network): honest teaser, not real extraction.
+# ---------------------------------------------------------------------------
+
+_TRY_TECH_KEYWORDS = [
+    # counted by per-session presence, case-insensitive word-ish match
+    "python", "typescript", "javascript", "rust", "golang", "java", "kotlin", "swift",
+    "react", "next.js", "vue", "svelte", "fastapi", "django", "flask", "express",
+    "postgres", "postgresql", "mysql", "sqlite", "mongodb", "redis", "supabase",
+    "docker", "kubernetes", "terraform", "railway", "vercel", "fly.io", "aws", "gcp",
+    "stripe", "paddle", "graphql", "grpc", "kafka", "rabbitmq", "node", "deno", "bun",
+]
+
+_TRY_WORKFLOW_PATTERNS = [
+    ("commit → push → deploy",
+     [r"git commit", r"git push", r"deploy|railway|vercel|fly\.io|heroku|render"]),
+    ("test → fix → re-test",
+     [r"pytest|npm test|go test|cargo test|jest|vitest", r"fail|error|assert", r"pass|fixed|green|ok"]),
+    ("build → publish → verify",
+     [r"python -m build|npm run build|cargo build|docker build", r"twine upload|npm publish|cargo publish|docker push", r"pypi|npmjs|registry|verify"]),
+    ("branch → PR → merge",
+     [r"git checkout -b|git branch", r"pull request|\bPR\b|merge request", r"merge|squash"]),
+    ("migrate → verify schema",
+     [r"migration|alembic|prisma migrate|ALTER TABLE", r"schema|verify|applied"]),
+    ("debug from logs",
+     [r"logs|traceback|stack trace", r"grep|tail|search", r"fix|found|cause"]),
+]
+
+
+def analyze_claude_code_sessions(max_sessions: int = 500) -> Optional[dict]:
+    """Aggregate a local-only preview across Claude Code session files.
+    Returns None when no sessions exist. Derived stats only — no raw
+    content is returned, nothing is uploaded anywhere."""
+    files = discover_claude_code_sessions()[:max_sessions]
+    if not files:
+        return None
+
+    from collections import Counter
+    projects = Counter()
+    tech = Counter()
+    patterns = Counter()
+    first_date, last_date = None, None
+    sessions_scanned = 0
+
+    compiled = [(name, [_re.compile(p, _re.IGNORECASE) for p in parts])
+                for name, parts in _TRY_WORKFLOW_PATTERNS]
+
+    # Project dir names encode absolute paths with dashes. Strip the common
+    # home prefix so "-Users-x-Projects-mengram" displays as "Projects/mengram".
+    dir_names = sorted({Path(f).parent.name for f in files})
+    common = os.path.commonprefix(dir_names) if len(dir_names) > 1 else ""
+    common = common[:common.rfind("-") + 1] if "-" in common else ""
+
+    def _project_label(dirname: str) -> str:
+        rest = dirname[len(common):] if common and dirname.startswith(common) else dirname
+        rest = rest.strip("-")
+        return rest.replace("-", "/") if rest else (dirname.split("-")[-1] or "(root)")
+
+    for path in files:
+        p = Path(path)
+        project = _project_label(p.parent.name)
+        try:
+            text_parts = []
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if '"type"' not in line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    if row.get("type") not in ("user", "assistant"):
+                        continue
+                    msg = row.get("message")
+                    if isinstance(msg, dict):
+                        t = _cc_extract_text(msg.get("content"))
+                        if t:
+                            text_parts.append(t)
+                    ts = row.get("timestamp")
+                    if ts:
+                        first_date = min(first_date or ts, ts)
+                        last_date = max(last_date or ts, ts)
+            if not text_parts:
+                continue
+            sessions_scanned += 1
+            projects[project] += 1
+            blob = "\n".join(text_parts).lower()
+            for kw in _TRY_TECH_KEYWORDS:
+                if kw in blob:
+                    tech[kw] += 1
+            for name, regs in compiled:
+                if all(r.search(blob) for r in regs):
+                    patterns[name] += 1
+        except OSError:
+            continue
+
+    if sessions_scanned == 0:
+        return None
+    return {
+        "sessions": sessions_scanned,
+        "projects": projects.most_common(6),
+        "tech": [k for k, _ in tech.most_common(7)],
+        # single-session "patterns" aren't patterns yet
+        "patterns": [(n, c) for n, c in patterns.most_common(5) if c >= 2],
+        "first_date": (first_date or "")[:10],
+        "last_date": (last_date or "")[:10],
+    }
