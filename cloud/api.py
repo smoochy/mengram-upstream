@@ -1949,6 +1949,9 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
             ("https://mengram.io/blog/schema-lied-production-cascade", "0.8", "monthly"),
             ("https://mengram.io/blog/rrf-scores-not-similarities", "0.8", "monthly"),
+            ("https://mengram.io/blog/does-claude-code-remember-between-sessions", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-remember-project-context", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-memory-across-machines", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2268,6 +2271,121 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "does-claude-code-remember-between-sessions": {
+            "slug": "does-claude-code-remember-between-sessions",
+            "title": "Does Claude Code Remember Between Sessions? (What It Keeps, What It Forgets)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "6",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Short answer: partially. Claude Code can resume a session and read CLAUDE.md, but it does not carry your decisions, context, or working state across new sessions by default. Here's exactly what persists, what doesn't, and how to get true cross-session memory.",
+            "seo_title": "Does Claude Code Remember Between Sessions? What Persists and What Doesn't (2026)",
+            "seo_description": "Does Claude Code remember between sessions? Partially — resume and CLAUDE.md help, but decisions, context, and working state are lost on a new session or after compaction. What persists, what doesn't, and how to add true persistent memory.",
+            "seo_keywords": "does claude code remember between sessions, claude code memory between sessions, claude code remember context, claude code persistent memory, claude code session memory, claude code forgets",
+            "content_html": """
+<h2>The short answer</h2>
+<p><strong>Partially.</strong> Claude Code can <em>resume</em> a previous session and it reads your <code>CLAUDE.md</code> on start — but by default it does <strong>not</strong> carry your decisions, the reasoning behind them, or your working context across a genuinely new session, a <code>/clear</code>, or an auto-compaction. Each fresh session starts close to zero and you re-explain.</p>
+
+<h2>What DOES persist</h2>
+<ul>
+<li><strong><code>CLAUDE.md</code> / <code>AGENTS.md</code>:</strong> static instructions you wrote by hand. Loaded every session — but only holds what you remembered to write down, and even this loses force after heavy compaction (<a href="https://github.com/anthropics/claude-code/issues/6354">issue #6354</a>).</li>
+<li><strong><code>--resume</code> / <code>--continue</code>:</strong> re-opens a specific prior conversation. Useful, but it's one thread — it doesn't give you cumulative memory across all your work, and a resumed session still compacts.</li>
+<li><strong>Project files:</strong> your code is on disk, so Claude can re-read it. But re-reading a codebase is not the same as remembering the <em>decisions</em> you made about it.</li>
+</ul>
+
+<h2>What does NOT persist</h2>
+<ul>
+<li>Decisions and the reasoning behind them ("we chose Postgres over Mongo because…")</li>
+<li>Constraints you stated once ("never touch the billing table directly")</li>
+<li>Approaches you already tried and rejected</li>
+<li>Working state mid-task after auto-compaction summarizes the conversation and discards the original — a pain with <a href="https://github.com/anthropics/claude-code/issues/17428">300+ combined upvotes</a> on Anthropic's tracker</li>
+</ul>
+
+<h2>Why CLAUDE.md isn't enough</h2>
+<p>The usual advice — "put it in CLAUDE.md" — helps but has a ceiling: the file is static. It captures last week's snapshot, not the decision from forty minutes ago. And nothing auto-updates it: you have to notice something is worth remembering, stop, and write it down. In practice nobody does that reliably, so the file drifts out of date.</p>
+
+<h2>How to get true cross-session memory</h2>
+<p>The durable fix is to keep memory <strong>outside</strong> the context window and re-inject it on every fresh start. Claude Code's <code>SessionStart</code> hook fires on startup, on <code>/clear</code>, on resume, <em>and after compaction</em> — the exact seam where you can reload state that the session lost.</p>
+<p><a href="https://mengram.io">Mengram</a> uses this: a Stop hook captures each turn into persistent memory (secrets redacted locally), and the SessionStart hook reloads your cognitive profile — who you are, what you're building, what you decided — every new session. Setup is two commands:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>You can also preview what memory would know from your existing history with zero account: <code>pip install mengram-ai && mengram import claude-code</code>.</p>
+
+<h2>Honest limits</h2>
+<p>No external memory restores the full pre-compaction transcript — that's gone. What changes is <em>which</em> things survive: structured facts, decisions, and workflows extracted while they were fresh, instead of whatever a token-pressured summary happened to keep. For most "why does Claude keep forgetting my project" frustration, that's the difference that matters.</p>
+<p>Related reading: <a href="/blog/claude-code-compaction-context-loss">why compaction erases context and how to survive it</a>.</p>
+""",
+        },
+        "claude-code-remember-project-context": {
+            "slug": "claude-code-remember-project-context",
+            "title": "How to Make Claude Code Remember Your Project (Stop Re-Explaining Every Session)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "6",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Re-explaining your stack, conventions, and decisions at the start of every Claude Code session is the #1 friction developers report. Here are the four ways to make project context stick — from CLAUDE.md to hooks-based persistent memory — with the trade-offs of each.",
+            "seo_title": "How to Make Claude Code Remember Your Project Context (4 Methods, 2026)",
+            "seo_description": "Stop re-explaining your project to Claude Code every session. Four methods to make project context, conventions, and decisions persist — CLAUDE.md, rules files, resume, and hooks-based persistent memory — with honest trade-offs.",
+            "seo_keywords": "claude code remember project, claude code project context, claude code forgets project, make claude code remember, claude code context between sessions, claude code memory project",
+            "content_html": """
+<h2>The friction</h2>
+<p>Every new Claude Code session, the same ritual: re-explain the stack, re-state the conventions, and watch it suggest the approach you rejected two weeks ago. The concrete cost is real time — re-establishing context can eat the first 15-30 minutes of a session. Here are the four ways to make project context stick, weakest to strongest.</p>
+
+<h2>1. CLAUDE.md (static, manual)</h2>
+<p>A <code>CLAUDE.md</code> at your repo root is loaded into every session. Put your stack, conventions, and hard constraints there. <strong>Good for:</strong> stable facts that rarely change (language, framework, "always use pnpm"). <strong>Weakness:</strong> it's static and manual — it holds what you remembered to write down, not what happened in yesterday's session, and it goes stale unless you maintain it. After heavy compaction even its guidance fades.</p>
+
+<h2>2. Rules files (scoped, still static)</h2>
+<p>Break guidance into focused rule files. More organized than one big CLAUDE.md, same fundamental limit: static snapshots that depend on you updating them.</p>
+
+<h2>3. --resume / --continue (one thread)</h2>
+<p>Re-open a specific past conversation to carry its context forward. <strong>Good for:</strong> picking up exactly where you left off on one task. <strong>Weakness:</strong> it's a single thread, not cumulative project memory, and a resumed session still compacts and loses state.</p>
+
+<h2>4. Hooks-based persistent memory (dynamic, automatic)</h2>
+<p>The only approach that captures decisions <em>as they happen</em> and reloads them automatically. Claude Code's <code>Stop</code> hook can persist each turn to an external store; the <code>SessionStart</code> hook reloads a distilled profile of your project every new session — including after <code>/clear</code> and compaction, where the other methods lose ground.</p>
+<p>This is what <a href="https://mengram.io">Mengram</a>'s plugin does. Beyond facts, it also learns <em>procedural</em> memory — the workflows you repeat (deploy, test, release) — and when one fails, it records the assumption that broke so the next run doesn't repeat the mistake. Setup:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram
+# optional: seed it from your existing history (secrets redacted locally)
+pip install mengram-ai && mengram import claude-code</code></pre>
+
+<h2>Which should you use?</h2>
+<p>Use <strong>CLAUDE.md</strong> for boring stable facts (it's free and simple), and add <strong>hooks-based memory</strong> for the dynamic stuff — decisions, session history, and workflows that a static file can't keep up with. They compose: the file for what never changes, memory for what does.</p>
+<p>Related: <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions?</a> and <a href="/blog/claude-code-compaction-context-loss">surviving auto-compaction</a>.</p>
+""",
+        },
+        "claude-code-memory-across-machines": {
+            "slug": "claude-code-memory-across-machines",
+            "title": "Claude Code Memory Across Machines: Portable Project Context for Multi-Device Work",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Work on Claude Code from a laptop and a desktop — or switch between Claude Code and Cursor — and your context doesn't follow you. There's a 34-upvote feature request for portable project memory. Here's how to get it today.",
+            "seo_title": "Claude Code Memory Across Machines — Portable Context for Multi-Device Dev (2026)",
+            "seo_description": "Claude Code memory doesn't follow you between machines or tools. A 34-upvote feature request asks for portable project memory. How to get cross-machine, cross-tool memory today with a hosted or self-hosted memory layer.",
+            "seo_keywords": "claude code memory across machines, claude code multi device, portable claude code memory, claude code memory sync, cross machine claude code, claude code cursor shared memory",
+            "content_html": """
+<h2>The problem</h2>
+<p>Your <code>CLAUDE.md</code> lives in one repo on one machine. Switch to your other laptop, or move from Claude Code to Cursor, and the context you built doesn't come with you. There's an open feature request on Anthropic's tracker for <a href="https://github.com/anthropics/claude-code/issues/25739">portable project memory across machines</a> (34+ upvotes) — it's a recognized gap.</p>
+
+<h2>Why local files don't solve it</h2>
+<p>CLAUDE.md and rules files are per-repo, per-machine. You can commit them to git to sync across machines, but that only covers static instructions — not session history, decisions, or the working memory that accumulates as you use the tool. And it does nothing for cross-<em>tool</em> portability (Claude Code ↔ Cursor ↔ Codex).</p>
+
+<h2>The fix: memory in a layer, not a file</h2>
+<p>If memory lives in a hosted (or self-hosted) layer keyed to <em>you</em> rather than to a file on one disk, it follows you everywhere that can reach it. <a href="https://mengram.io">Mengram</a> works this way: the same memory is available from Claude Code on your laptop, Claude Code on your work machine, Cursor via MCP, and the API — because it's one store, not a file.</p>
+<pre><code># same two commands on every machine — same memory
+mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>For Cursor or other MCP-capable tools, point them at the same account over MCP and the context built in one tool is there in the other.</p>
+
+<h2>Privacy and self-hosting</h2>
+<p>If a hosted store isn't acceptable for your work, the core is Apache 2.0 and self-hostable — run it on your own infra and keep the same portable-memory behavior across your machines. You can also scope what gets captured (deny by category or keyword) so sensitive content never leaves your machine in the first place.</p>
+<p>Related: <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions?</a></p>
+""",
+        },
         "rrf-scores-not-similarities": {
             "slug": "rrf-scores-not-similarities",
             "title": "Our Monitoring Said 62% of Retrievals Were Failing. The Bug Was Two Score Scales in One Column.",
