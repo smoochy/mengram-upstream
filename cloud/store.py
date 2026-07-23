@@ -1139,6 +1139,13 @@ class CloudStore:
                 ADD COLUMN IF NOT EXISTS query_score FLOAT,
                 ADD COLUMN IF NOT EXISTS query_language VARCHAR(8)
             """)
+            # query_score mixes two scales (cosine ~0.3-0.9 vs RRF ~0.017-0.05
+            # depending on code path) — result_quality is the scale-aware label
+            # (strong/weak/no_match) so analytics never misread RRF as failure.
+            cur.execute("""
+                ALTER TABLE usage_log
+                ADD COLUMN IF NOT EXISTS result_quality VARCHAR(10)
+            """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_usage_search_health
                 ON usage_log(user_id, created_at DESC)
@@ -1500,7 +1507,23 @@ class CloudStore:
             )
             quiet = [{"email": r["email"], "last_active": str(r["last_active"]),
                       "total_calls": r["total_calls"]} for r in cur.fetchall()]
-        return {"broken_on_install": broken, "gone_quiet": quiet}
+            # half_wired: integrated recall but never capture — searching an
+            # empty vault to quota exhaustion (found 2026-07-22: two accounts
+            # burned 600+200 searches over zero entities). Warm rescue leads.
+            cur.execute(
+                """SELECT u.email,
+                          COUNT(l.id) FILTER (WHERE l.action IN ('search','search_all')) AS searches
+                   FROM users u
+                   JOIN usage_log l ON l.user_id = u.id
+                       AND l.created_at > NOW() - INTERVAL '14 days'
+                   WHERE NOT EXISTS (SELECT 1 FROM entities e WHERE e.user_id = u.id)
+                   GROUP BY u.id, u.email
+                   HAVING COUNT(l.id) FILTER (WHERE l.action IN ('search','search_all')) > 50
+                      AND COUNT(l.id) FILTER (WHERE l.action = 'add') = 0
+                   ORDER BY 2 DESC"""
+            )
+            half_wired = [{"email": r["email"], "searches": r["searches"]} for r in cur.fetchall()]
+        return {"broken_on_install": broken, "gone_quiet": quiet, "half_wired": half_wired}
 
     # Drip sequence — each step requires the previous step to have been sent.
     # Prevents sending 24h/72h/7d in a single cron burst when fixing bugs that
@@ -3654,7 +3677,7 @@ Return ONLY JSON (no markdown):
         with self._cursor(dict_cursor=True) as cur:
             if scope:
                 cur.execute(
-                    """SELECT k.title, k.content, k.scope, k.confidence, k.refreshed_at,
+                    """SELECT k.id, k.title, k.content, k.scope, k.confidence, k.refreshed_at,
                               e.name as entity_name
                        FROM knowledge k
                        JOIN entities e ON e.id = k.entity_id
@@ -3664,7 +3687,7 @@ Return ONLY JSON (no markdown):
                 )
             else:
                 cur.execute(
-                    """SELECT k.title, k.content, k.scope, k.confidence, k.refreshed_at,
+                    """SELECT k.id, k.title, k.content, k.scope, k.confidence, k.refreshed_at,
                               e.name as entity_name
                        FROM knowledge k
                        JOIN entities e ON e.id = k.entity_id
@@ -3673,6 +3696,7 @@ Return ONLY JSON (no markdown):
                     (user_id, sub_user_id)
                 )
             return [{
+                "id": str(r["id"]),
                 "title": r["title"],
                 "content": r["content"],
                 "scope": r["scope"],
@@ -3680,6 +3704,28 @@ Return ONLY JSON (no markdown):
                 "entity": r["entity_name"],
                 "refreshed_at": r["refreshed_at"].isoformat() if r["refreshed_at"] else None,
             } for r in cur.fetchall()]
+
+    def delete_reflection(self, user_id: str, reflection_id: str,
+                          sub_user_id: str = "default") -> bool:
+        """Delete a single reflection by id (issue #54 follow-up — polluted
+        reflections couldn't be removed individually). Scoped to the owning
+        user and sub_user; only rows with type='reflection' are deletable
+        through this path."""
+        with self._cursor() as cur:
+            cur.execute(
+                """DELETE FROM knowledge k
+                   USING entities e
+                   WHERE k.entity_id = e.id
+                     AND k.id = %s AND k.user_id = %s
+                     AND e.sub_user_id = %s AND k.type = 'reflection'
+                   RETURNING k.id""",
+                (reflection_id, user_id, sub_user_id)
+            )
+            deleted = cur.fetchone() is not None
+        if deleted:
+            for sc in ("entity", "cross", "temporal", "all"):
+                self.cache.invalidate(f"reflections:{user_id}:{sub_user_id}:{sc}")
+        return deleted
 
     def get_insights(self, user_id: str, sub_user_id: str = "default") -> dict:
         """Get formatted insights for dashboard — profile, weekly, network, patterns."""
@@ -4245,15 +4291,17 @@ REFLECTIONS/PATTERNS:
     # ---- Usage tracking ----
 
     def log_usage(self, user_id: str, action: str, tokens: int = 0,
-                  query_score: float = None, query_language: str = None):
+                  query_score: float = None, query_language: str = None,
+                  result_quality: str = None):
         """Log API usage. Optional query_score + query_language let search
-        callers feed Memory Health monitoring (v2.22)."""
+        callers feed Memory Health monitoring (v2.22). result_quality is the
+        scale-aware label (query_score mixes cosine and RRF scales)."""
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO usage_log
-                       (user_id, action, tokens_used, query_score, query_language)
-                   VALUES (%s, %s, %s, %s, %s)""",
-                (user_id, action, tokens, query_score, query_language)
+                       (user_id, action, tokens_used, query_score, query_language, result_quality)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (user_id, action, tokens, query_score, query_language, result_quality)
             )
 
     # ---- Subscriptions ----

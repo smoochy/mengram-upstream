@@ -720,6 +720,16 @@ Be strict — only include entities that directly answer or relate to the query.
         days_in_month = calendar.monthrange(today.year, today.month)[1]
         return (days_in_month - today.day + 1) * 86400
 
+    def _quality_label(top_score: float) -> str:
+        """Scale-aware retrieval quality. query_score mixes two scales
+        (rerank/cosine 0-1 vs raw RRF topping out ~0.05), so raw thresholds
+        misread healthy RRF results as failures — use this label instead."""
+        if top_score >= 0.3:
+            return "strong"
+        if top_score >= 0.02:
+            return "weak"
+        return "no_match"
+
     def use_quota(ctx: AuthContext, action: str, count: int = 1):
         """Atomically check quota AND increment usage in one operation.
         Uses Redis counter cache for fast-reject before hitting PostgreSQL."""
@@ -1924,6 +1934,7 @@ m.add("I love hiking in the mountains")</code></pre>
         pages = [
             # Core — highest priority
             ("https://mengram.io", "1.0", "weekly"),
+            ("https://mengram.io/for-agents", "0.9", "weekly"),
             # /pricing removed — 301 redirects to /#pricing (no duplicate content)
             # Claude Code — high SEO value
             ("https://mengram.io/vs/claude-mem", "0.9", "weekly"),
@@ -1935,6 +1946,8 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/vs/supermemory", "0.8", "weekly"),
             # Blog — high SEO value
             ("https://mengram.io/blog", "0.8", "weekly"),
+            ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
+            ("https://mengram.io/blog/schema-lied-production-cascade", "0.8", "monthly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -1996,6 +2009,12 @@ m.add("I love hiking in the mountains")</code></pre>
     async def privacy():
         """Privacy Policy."""
         p = Path(__file__).parent / "privacy.html"
+        return p.read_text(encoding="utf-8")
+
+    @app.get("/for-agents", response_class=HTMLResponse)
+    async def for_agents():
+        """Memory API for agent builders — segment (b) landing."""
+        p = Path(__file__).parent / "for-agents.html"
         return p.read_text(encoding="utf-8")
 
     @app.get("/refund", response_class=HTMLResponse)
@@ -2248,6 +2267,97 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "schema-lied-production-cascade": {
+            "slug": "schema-lied-production-cascade",
+            "title": "Our Schema Declared ON DELETE CASCADE. Production Didn't Have It.",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ["Engineering", "PostgreSQL"],
+            "excerpt": "Users' 'deleted' data was never deleted: schema.sql promised CASCADE constraints that months of incremental migrations never created. How an end-to-end test against production caught it, and the 12,053 orphaned rows it exposed.",
+            "seo_title": "Your schema.sql Is Fiction: The Missing ON DELETE CASCADE That Kept 'Deleted' Data Alive",
+            "seo_description": "schema.sql declared ON DELETE CASCADE on every child table. Production tables, built by incremental migrations, had none. Deleted accounts left 12,053 orphaned rows. How a disposable-account e2e test caught what code review couldn't.",
+            "seo_keywords": "on delete cascade missing, schema drift production, postgres cascade not working, migration drift, schema.sql vs production, orphaned rows postgres, gdpr delete data postgres",
+            "content_html": """
+<h2>The setup</h2>
+<p>A user filed an issue: "I can't delete my account." Fair — there was no account deletion. GDPR-shaped hole, my fault, so I built it. The store method deleted the <code>users</code> row and trusted the foreign keys: our <code>schema.sql</code> declares <code>ON DELETE CASCADE</code> on every child table. Code review passed. Syntax checked. The SQL was correct.</p>
+
+<h2>The test I almost skipped</h2>
+<p>Before shipping, I ran an end-to-end test against production: signed up a disposable account, filled it with real data across every table (facts, events, workflows, embeddings), deleted it through the new endpoint — and then audited every table row-by-row with direct SQL.</p>
+<p>Result: <code>api_keys: 1, entities: 4, usage_log: 1</code> — still there.</p>
+
+<h2>The schema file is fiction. The database is fact.</h2>
+<p>Production had <strong>no cascade constraints at all</strong>. The schema file declares them — but production tables were created over months by incremental migrations (<code>CREATE TABLE IF NOT EXISTS ...</code>, <code>ALTER TABLE ADD COLUMN ...</code>) that never included the foreign keys. The pristine schema.sql is what a <em>fresh</em> install gets. Production is what history gets.</p>
+<p>It got worse. If cascades never worked, what about the regular "delete entity" feature we'd had for months? One audit query across the whole database later:</p>
+<p><strong>12,053 orphaned facts. 442 orphaned embeddings.</strong> Every entity deletion since launch had silently left its children behind. Users clicked a button that said "permanently delete" — the parent row vanished, the content stayed on disk, invisible to the API but very much alive.</p>
+<p>For a product whose whole pitch is "trust me with your personal memory," that's about the worst class of bug there is.</p>
+
+<h2>The fixes</h2>
+<ul>
+<li>Deletion is now fully explicit — children before parents, 22 tables, one transaction, zero reliance on cascades. The endpoint returns per-table deletion counts so the user can verify.</li>
+<li>Same treatment for single-entity and delete-all paths (they had the same disease).</li>
+<li>Second e2e round with a fresh disposable account: zero residue in every table.</li>
+</ul>
+
+<h2>Lessons that generalize</h2>
+<ol>
+<li><strong>Your schema file is fiction. The database is fact.</strong> Audit <code>information_schema.table_constraints</code>, not your repo.</li>
+<li><strong>"Syntax OK" and "code review passed" prove nothing about deletion.</strong> Only a row-level audit after a real delete does.</li>
+<li><strong>Test destructive paths against the real database</strong> (with a disposable account) — a fresh local install has exactly the constraints your production is missing, so local tests pass for the wrong reason.</li>
+</ol>
+<p>Check your own prod — this one-liner lists FK constraints and their delete rules:</p>
+<pre><code>SELECT conrelid::regclass AS table, conname,
+       CASE confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'a' THEN 'NO ACTION'
+            WHEN 'r' THEN 'RESTRICT' WHEN 'n' THEN 'SET NULL' END AS on_delete
+FROM pg_constraint WHERE contype = 'f' ORDER BY 1;</code></pre>
+<p>If what you see doesn't match your schema file — welcome to the club, and go count your orphans.</p>
+<p><em>Context: this is Mengram (an AI memory layer) — the account-deletion work, the audit, and both e2e rounds are in the public commit history.</em></p>
+""",
+        },
+        "claude-code-compaction-context-loss": {
+            "slug": "claude-code-compaction-context-loss",
+            "title": "Claude Code Forgets Everything After Compaction. Here's the Fix That Survives It",
+            "date": "July 22, 2026",
+            "date_iso": "2026-07-22",
+            "read_time": "6",
+            "tags": ["Claude Code", "Guide"],
+            "excerpt": "Auto-compact wipes your working context — decisions, constraints, even CLAUDE.md guidance drift away. Why it happens, what Anthropic's issue tracker says, and how to make context survive compaction automatically.",
+            "seo_title": "Claude Code Forgets Context After Compaction — the Fix That Survives /compact (2026)",
+            "seo_description": "Claude Code auto-compaction erases working context: decisions, constraints, project state. 300+ upvotes across GitHub issues confirm it. Here's how persistent memory reloads your context automatically after every compact, /clear, and restart.",
+            "seo_keywords": "claude code forgets context, claude code compaction, claude code auto-compact loses context, does claude code remember between sessions, claude code forgets CLAUDE.md, survive compact claude code, claude code context loss fix, claude code persistent memory",
+            "content_html": """
+<h2>The problem: compaction is amnesia by design</h2>
+<p>When a Claude Code session approaches its context limit, <strong>auto-compact</strong> summarizes the conversation and throws away the original. It has to — context windows are finite. But what survives is a summary written under token pressure, and what dies is exactly the stuff you needed: the decision you made an hour ago, the constraint you stated once, the approach you already rejected twice.</p>
+<p>This isn't a niche complaint. On Anthropic's own issue tracker: <a href="https://github.com/anthropics/claude-code/issues/17428">enhanced /compact with restorable summaries</a> (114 upvotes), <a href="https://github.com/anthropics/claude-code/issues/27242">no way to review context after compaction</a> (79), <a href="https://github.com/anthropics/claude-code/issues/7502">auto-compact erases chat history without warning</a> (35), and — the quiet killer — <a href="https://github.com/anthropics/claude-code/issues/6354">Claude forgets CLAUDE.md guidance after compaction</a> (28). Hundreds of developers voting on the same wound.</p>
+
+<h2>Why CLAUDE.md doesn't save you</h2>
+<p>The standard advice is "put important context in CLAUDE.md." It helps — until it doesn't. CLAUDE.md is static: it holds what you remembered to write down last week, not the decision from forty minutes ago that compaction just ate. And per the issue above, even CLAUDE.md guidance <em>itself</em> loses force after heavy compaction as the summary crowds it out.</p>
+
+<h2>What actually survives: memory outside the context window</h2>
+<p>The durable fix is structural: keep the important state <strong>outside</strong> the thing that gets compacted, and re-inject it on every fresh start. Claude Code has the exact machinery for this — the <code>SessionStart</code> hook fires not just on startup, but also on <code>/clear</code>, resume, <em>and after compaction</em>.</p>
+<p>That's how the <a href="https://mengram.io">Mengram</a> plugin makes context survive compaction:</p>
+<ul>
+<li><strong>During the session</strong>, a Stop hook captures each turn in the background — facts, decisions, and workflows get extracted into persistent memory (API keys and tokens are redacted client-side).</li>
+<li><strong>After compaction</strong> (or /clear, or a new session, or a different machine), the SessionStart hook reloads your cognitive profile — who you are, what you're building, what you decided — as fresh context. The summary can be lossy; the memory isn't.</li>
+<li><strong>On every prompt</strong>, relevant past context is recalled and injected, so "how did we deploy this again?" gets answered from memory instead of re-derived.</li>
+</ul>
+
+<h2>Setup (60 seconds)</h2>
+<pre><code># 1. Free API key: https://mengram.io — save it once
+mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+
+# 2. Install the plugin
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram
+
+# 3. Optional: feed in your existing session history (secrets redacted locally)
+pip install mengram-ai && mengram import claude-code</code></pre>
+<p>Test it: tell Claude something about your project, run <code>/compact</code> (or <code>/clear</code>), and ask again. The context comes back — not from the summary, but from memory.</p>
+
+<h2>What this doesn't fix</h2>
+<p>Honesty section: no external memory restores the <em>full</em> pre-compact transcript — that's gone, and tools claiming otherwise are re-summarizing too. What persistent memory changes is <strong>which</strong> things survive: instead of whatever the compactor kept under pressure, you keep structured facts, decisions, and workflows extracted while they were fresh. For the transcript itself, vote on <a href="https://github.com/anthropics/claude-code/issues/17428">#17428</a> — file-backed summaries would compose beautifully with external memory.</p>
+""",
+        },
         "what-is-ai-memory": {
             "slug": "what-is-ai-memory",
             "title": "What is AI Memory? A Developer's Guide to Persistent Memory for LLMs",
@@ -7117,7 +7227,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             top_score = float(cached[0]["score"]) if cached and "score" in cached[0] else 0.0
             store.log_usage(user_id, "search",
                             query_score=top_score,
-                            query_language=_detect_query_language(req.query))
+                            query_language=_detect_query_language(req.query),
+                            result_quality=_quality_label(top_score))
             return {"results": cached}
 
         embedder = get_embedder()
@@ -7211,7 +7322,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         top_score = float(results[0]["score"]) if results and "score" in results[0] else 0.0
         store.log_usage(user_id, "search",
                         query_score=top_score,
-                        query_language=_detect_query_language(req.query))
+                        query_language=_detect_query_language(req.query),
+                        result_quality=_quality_label(top_score))
         # increment already done atomically in use_quota above
 
         # Quality label — strong/weak/no_match — so MCP clients and voice
@@ -7222,12 +7334,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # raw RRF for free/starter). Rerank outputs 0-1 cosine-style scores;
         # raw RRF tops out around 0.05. We use overlapping but distinct
         # bands so callers can decide whether to trust a "weak" result.
-        if top_score >= 0.3:
-            result_quality = "strong"
-        elif top_score >= 0.02:
-            result_quality = "weak"
-        else:
-            result_quality = "no_match"
+        result_quality = _quality_label(top_score)
 
         response = {
             "results": results,
@@ -7596,9 +7703,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/reflections", tags=["Insights"])
     async def get_reflections(scope: str = None, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
-        """Get all reflections. Optional ?scope=entity|cross|temporal"""
+        """Get all reflections. Optional ?scope=entity|cross|temporal. Each item includes its id (deletable via DELETE /v1/reflections/{id})."""
         user_id = ctx.user_id
         return {"reflections": store.get_reflections(user_id, scope=scope, sub_user_id=sub_user_id)}
+
+    @app.delete("/v1/reflections/{reflection_id}", tags=["Insights"])
+    async def delete_reflection(reflection_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Delete a single reflection by id. Use when a generated reflection is
+        wrong or polluted (e.g. cross-entity identity mixups) — the next
+        reflection pass will regenerate from clean facts."""
+        user_id = ctx.user_id
+        deleted = store.delete_reflection(user_id, reflection_id, sub_user_id=sub_user_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Reflection '{reflection_id}' not found")
+        return {"status": "deleted", "reflection_id": reflection_id}
 
     @app.get("/v1/insights", tags=["Insights"])
     async def get_insights(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
@@ -8241,7 +8359,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             top_score = float(sem[0]["score"]) if sem and "score" in sem[0] else 0.0
             store.log_usage(user_id, "search_all",
                             query_score=top_score,
-                            query_language=_detect_query_language(req.query))
+                            query_language=_detect_query_language(req.query),
+                            result_quality=_quality_label(top_score))
             return cached
 
         embedder = get_embedder()
@@ -8366,7 +8485,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         top_score = float(semantic[0]["score"]) if semantic and "score" in semantic[0] else 0.0
         store.log_usage(user_id, "search_all",
                         query_score=top_score,
-                        query_language=_detect_query_language(req.query))
+                        query_language=_detect_query_language(req.query),
+                        result_quality=_quality_label(top_score))
         # increment already done in use_quota above
         if not any(result.get(k) for k in ("semantic", "episodic", "procedural", "chunks")):
             try:
@@ -8941,13 +9061,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             _rep = store.get_silence_report()
                             _broken = _rep["broken_on_install"]
                             _quiet = _rep["gone_quiet"]
-                            if (_broken or _quiet) and os.environ.get("RESEND_API_KEY"):
+                            _half = _rep.get("half_wired", [])
+                            if (_broken or _quiet or _half) and os.environ.get("RESEND_API_KEY"):
                                 _lines = [f"Silence report {_iso_ops}", ""]
                                 _lines.append(f"Broken on install — signed up 48h+ ago, zero API calls ({len(_broken)}):")
                                 _lines += [f"  - {r['email']} (signed up {r['signed_up']})" for r in _broken] or ["  (none)"]
                                 _lines.append("")
                                 _lines.append(f"Gone quiet — 20+ calls before, silent 14+ days ({len(_quiet)}):")
                                 _lines += [f"  - {r['email']} (last active {r['last_active']}, {r['total_calls']} calls)" for r in _quiet] or ["  (none)"]
+                                _lines.append("")
+                                _lines.append(f"Half-wired — recall integrated, capture never ({len(_half)}; searching an empty vault):")
+                                _lines += [f"  - {r['email']} ({r['searches']} searches / 14d, zero entities)" for r in _half] or ["  (none)"]
                                 import resend as _resend_ops
                                 _resend_ops.api_key = os.environ["RESEND_API_KEY"]
                                 _resend_ops.Emails.send({
