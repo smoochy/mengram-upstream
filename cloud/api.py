@@ -1952,6 +1952,9 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/does-claude-code-remember-between-sessions", "0.9", "weekly"),
             ("https://mengram.io/blog/claude-code-remember-project-context", "0.9", "weekly"),
             ("https://mengram.io/blog/claude-code-memory-across-machines", "0.9", "weekly"),
+            ("https://mengram.io/blog/persist-context-claude-code", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-memory-vs-memory-leak", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-memory-md", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2271,6 +2274,104 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "persist-context-claude-code": {
+            "slug": "persist-context-claude-code",
+            "title": "How to Persist Context in Claude Code (So It Doesn't Start From Zero)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Persisting context in Claude Code means keeping the things that matter outside the context window and reloading them automatically. Here's the mechanism — the SessionStart and Stop hooks — and how to wire it up, with or without a memory service.",
+            "seo_title": "How to Persist Context in Claude Code — Hooks, CLAUDE.md, and Memory (2026)",
+            "seo_description": "Persist context in Claude Code so a new session doesn't start from zero. The SessionStart/Stop hook mechanism explained, how to capture and reload context automatically, and where CLAUDE.md falls short.",
+            "seo_keywords": "persist context claude code, claude code persist context, keep context claude code, claude code context persistence, claude code save context, claude code load context",
+            "content_html": """
+<h2>What "persist context" actually requires</h2>
+<p>To persist context in Claude Code, you need two things: a place to <em>store</em> context that survives the session (outside the context window), and a moment to <em>reload</em> it into a fresh session. Claude Code gives you both as lifecycle hooks — the missing piece most setups skip is the storage layer.</p>
+
+<h2>The hook mechanism</h2>
+<ul>
+<li><strong>Stop hook</strong> — fires when Claude finishes a turn. This is where you capture what happened (the decision, the outcome, the workflow) into durable storage.</li>
+<li><strong>SessionStart hook</strong> — fires on a new session, on <code>/clear</code>, on resume, and <em>after compaction</em>. This is where you read state back and print it so Claude sees it as context.</li>
+<li><strong>UserPromptSubmit hook</strong> — fires before each prompt; optionally fetch only the context relevant to that prompt instead of front-loading everything.</li>
+</ul>
+<p>The pattern works with any storage — a JSON file, a database, or a memory service. The hooks are the seam; the storage is your choice.</p>
+
+<h2>Why CLAUDE.md is only half of it</h2>
+<p>CLAUDE.md is a static reload with no capture step — it holds what you wrote by hand, not what happened. Persisting context properly means the capture half runs automatically, so you're not relying on remembering to update a file.</p>
+
+<h2>Doing it with a memory layer</h2>
+<p><a href="https://mengram.io">Mengram</a> implements this loop as a plugin: the Stop hook extracts facts, decisions, and workflows into persistent memory (secrets redacted locally), and the SessionStart hook reloads a distilled profile every session. Two commands:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>Prefer to roll your own? The same hook events are documented by Anthropic — a small script writing to a local file gets you a working prototype. The point is to have <em>both</em> halves: capture on Stop, reload on SessionStart.</p>
+<p>Related: <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions?</a> · <a href="/blog/claude-code-compaction-context-loss">surviving auto-compaction</a></p>
+""",
+        },
+        "claude-code-memory-vs-memory-leak": {
+            "slug": "claude-code-memory-vs-memory-leak",
+            "title": "Claude Code Memory — Two Very Different Problems (Persistent Memory vs. RAM Leaks)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "4",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Searching 'Claude Code memory' returns two unrelated things: developers wanting persistent memory across sessions, and developers fighting a RAM memory leak. Here's how to tell which one you have and what to do about each.",
+            "seo_title": "Claude Code Memory: Persistent Context vs. RAM Memory Leak (Which Do You Have?)",
+            "seo_description": "'Claude Code memory' means two different things: persistent memory across sessions, or a RAM/OOM memory leak. How to tell them apart and fix each — the persistent-memory setup and the memory-leak workarounds.",
+            "seo_keywords": "claude code memory, claude code memory leak, claude code out of memory, claude code RAM, claude code persistent memory, claude code memory usage",
+            "content_html": """
+<h2>Two problems, one search term</h2>
+<p>"Claude Code memory" is ambiguous. Developers searching it want one of two completely different things:</p>
+<ol>
+<li><strong>Persistent memory</strong> — "why does Claude Code forget my project every session?"</li>
+<li><strong>A RAM memory leak</strong> — "why is Claude Code using 120 GB of RAM and getting OOM-killed?"</li>
+</ol>
+<p>This page disambiguates so you land on the right fix.</p>
+
+<h2>If you have the RAM leak</h2>
+<p>There are real, heavily-upvoted reports of Claude Code memory <em>consumption</em> growing until the process is OOM-killed (<a href="https://github.com/anthropics/claude-code/issues/4953">issue #4953</a>, 73+ upvotes; <a href="https://github.com/anthropics/claude-code/issues/11315">#11315</a>, 56+). Practical mitigations while Anthropic addresses it: restart long-running idle sessions, keep an eye on the <code>/tmp/claude-*</code> working files (<a href="https://github.com/anthropics/claude-code/issues/8856">#8856</a>), and avoid extremely long single sessions. This is a runtime bug, not something a memory tool fixes — track the issues above.</p>
+
+<h2>If you want persistent memory</h2>
+<p>If your actual problem is that Claude Code forgets your context between sessions, that's a different thing entirely — and it <em>is</em> solvable. Claude Code doesn't carry decisions, constraints, or working state across a new session or an auto-compaction by default. The fix is a memory layer wired to the SessionStart/Stop hooks that captures context as you work and reloads it every session.</p>
+<p><a href="https://mengram.io">Mengram</a> does this via its plugin; see <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions</a> and <a href="/blog/claude-code-remember-project-context">how to make Claude Code remember your project</a> for the full walkthrough.</p>
+
+<h2>Quick test: which one is it?</h2>
+<p>Open Activity Monitor / Task Manager while Claude Code runs. If RAM climbs without bound → you have the leak (a runtime issue). If RAM is fine but Claude keeps forgetting what you told it → you want persistent memory (a solvable setup).</p>
+""",
+        },
+        "claude-code-memory-md": {
+            "slug": "claude-code-memory-md",
+            "title": "Claude Code memory.md and CLAUDE.md: What They Do and Where They Fall Short",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "CLAUDE.md (and memory-style markdown files) give Claude Code static project instructions. They're useful and free — but they're snapshots you maintain by hand. Here's exactly what they cover, what they don't, and how to add the dynamic half.",
+            "seo_title": "Claude Code memory.md / CLAUDE.md — What It Does and Its Limits (2026)",
+            "seo_description": "CLAUDE.md and memory markdown files give Claude Code static instructions loaded every session. What they cover, why they go stale, and how to add automatic, dynamic memory that captures decisions as they happen.",
+            "seo_keywords": "claude code memory.md, claude.md, claude code memory files, claude code memory file, claude md file, claude code instructions file",
+            "content_html": """
+<h2>What CLAUDE.md does</h2>
+<p><code>CLAUDE.md</code> is a markdown file at your repo root that Claude Code loads into context at the start of every session. It's the standard way to give Claude persistent, project-specific instructions: your stack, coding conventions, directory layout, and hard rules ("always run migrations before deploy"). It's free, simple, and version-controllable — commit it and your whole team shares the same baseline.</p>
+
+<h2>Where it falls short</h2>
+<p>CLAUDE.md is a <strong>static snapshot you maintain by hand.</strong> Three concrete limits:</p>
+<ul>
+<li><strong>It only holds what you remembered to write.</strong> The decision you made forty minutes ago isn't in it unless you stopped and added it — and nobody does that reliably.</li>
+<li><strong>It goes stale.</strong> Your deploy process changes from 3 steps to 4; the file still says 3 until someone updates it.</li>
+<li><strong>It fades after compaction.</strong> There's a known issue where CLAUDE.md guidance loses force once a session heavily compacts (<a href="https://github.com/anthropics/claude-code/issues/6354">#6354</a>).</li>
+</ul>
+
+<h2>The dynamic half: memory that updates itself</h2>
+<p>CLAUDE.md is the right tool for stable facts. For the things that change — decisions, session history, evolving workflows — you want capture that runs automatically. Claude Code's Stop and SessionStart hooks make this possible: capture each turn's important state, reload it every new session.</p>
+<p><a href="https://mengram.io">Mengram</a> pairs with CLAUDE.md rather than replacing it: keep the boring stable facts in the file, let the plugin handle the dynamic memory. It can even generate an up-to-date CLAUDE.md from what it has learned (<code>mengram rules</code>). Setup:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>Related: <a href="/blog/claude-code-remember-project-context">4 methods to make Claude Code remember your project</a>.</p>
+""",
+        },
         "does-claude-code-remember-between-sessions": {
             "slug": "does-claude-code-remember-between-sessions",
             "title": "Does Claude Code Remember Between Sessions? (What It Keeps, What It Forgets)",
