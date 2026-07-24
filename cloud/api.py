@@ -1944,10 +1944,26 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/vs/letta", "0.8", "weekly"),
             ("https://mengram.io/vs/langmem", "0.8", "weekly"),
             ("https://mengram.io/vs/supermemory", "0.8", "weekly"),
+            ("https://mengram.io/vs/cognee", "0.8", "weekly"),
+            ("https://mengram.io/vs/hindsight", "0.8", "weekly"),
             # Blog — high SEO value
             ("https://mengram.io/blog", "0.8", "weekly"),
             ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
             ("https://mengram.io/blog/schema-lied-production-cascade", "0.8", "monthly"),
+            ("https://mengram.io/blog/rrf-scores-not-similarities", "0.8", "monthly"),
+            ("https://mengram.io/blog/does-claude-code-remember-between-sessions", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-remember-project-context", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-memory-across-machines", "0.9", "weekly"),
+            ("https://mengram.io/blog/persist-context-claude-code", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-memory-vs-memory-leak", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-code-memory-md", "0.9", "weekly"),
+            ("https://mengram.io/blog/memory-api-for-ai-agents", "0.9", "weekly"),
+            ("https://mengram.io/blog/multi-user-memory-ai-agents", "0.9", "weekly"),
+            ("https://mengram.io/blog/procedural-memory-ai-agents", "0.9", "weekly"),
+            ("https://mengram.io/blog/does-cursor-remember-between-sessions", "0.9", "weekly"),
+            ("https://mengram.io/blog/cursor-rules-memory", "0.9", "weekly"),
+            ("https://mengram.io/blog/cursor-mcp-memory-setup", "0.9", "weekly"),
+            ("https://mengram.io/blog/give-claude-chatgpt-long-term-memory-mcp", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2043,6 +2059,69 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- VS / Comparison pages (SEO) ----
     VS_PAGES = {
+        "cognee": {
+            "slug": "cognee",
+            "name": "Cognee",
+            "tagline": "Cognee builds a knowledge graph. Mengram learns your workflows.",
+            "description": "Cognee is a strong open-source knowledge-graph memory engine — it turns your data into a graph of entities and relationships and runs the whole memory layer on a single Postgres. Mengram overlaps on facts and graph, but adds what Cognee doesn't: procedural memory (workflows that evolve from failures), a cognitive profile, native multilingual retrieval, and Claude Code hooks.",
+            "their_good": [
+                "Knowledge-graph-first retrieval — answers relational/causal questions flat RAG can't",
+                "Runs graph + vectors + sessions on a single Postgres (simple ops)",
+                "Ontology-grounded extraction (ECL pipeline)",
+                "Large community (29k+ stars), Apache 2.0, MCP + LangGraph integrations",
+            ],
+            "their_missing": [
+                "No procedural memory — workflows with versions that evolve from successes and failures",
+                "No distinct episodic layer (events/decisions/outcomes as a first-class type)",
+                "No cognitive profile — a ready-to-use system prompt distilled from everything it knows about you",
+                "No native multilingual retrieval",
+                "MCP-only for Claude Code — no auto-save/auto-recall hooks, so capture isn't automatic",
+            ],
+            "has_semantic": "&#x2705;",
+            "has_episodic": "&#x274C;",
+            "has_multiuser": "&#x2705;",
+            "has_graph": "&#x2705;",
+            "has_mcp": "&#x2705;",
+            "has_selfhost": "&#x2705;",
+            "their_price": "Free (OSS), usage-priced cloud",
+            "best_for_them": "Building a queryable knowledge graph over documents and data where relational/causal retrieval is the priority. Cognee's graph is genuinely strong for that.",
+            "best_for_us": "Memory that learns how you work: procedural workflows with success/failure evolution, a cognitive profile, one memory shared across Claude Code (hooks), Cursor, and Codex, and multilingual retrieval in 23 languages.",
+            "website": "https://github.com/topoteretes/cognee",
+            "seo_title": "Mengram vs Cognee — Knowledge Graph vs Workflow Memory (2026)",
+            "seo_description": "Cognee builds a knowledge graph over your data. Mengram adds procedural memory (workflows that evolve from failures), a cognitive profile, multilingual retrieval, and Claude Code hooks. Honest comparison.",
+            "seo_keywords": "cognee alternative, Mengram vs Cognee, cognee vs mem0, AI memory knowledge graph, procedural memory, claude code memory",
+        },
+        "hindsight": {
+            "slug": "hindsight",
+            "name": "Hindsight",
+            "tagline": "Hindsight nails retrieval. Mengram adds workflow memory and a profile.",
+            "description": "Hindsight (by Vectorize) is a strong open-source agent-memory system — it leads the LongMemEval benchmark with excellent hybrid retrieval and a retain/recall/reflect loop. Mengram overlaps on facts and retrieval, and differentiates on procedural memory (workflows that evolve from failures), a cognitive profile, native multilingual retrieval, and Claude Code hooks rather than MCP-only.",
+            "their_good": [
+                "State-of-the-art retrieval — 91.4% on LongMemEval (first to break 90%)",
+                "Hybrid recall: semantic + BM25 + entity-graph + temporal, cross-encoder rerank",
+                "retain/recall/reflect with auto-updating mental models",
+                "MIT-licensed, fully self-hostable (Docker or embedded), MCP-based",
+            ],
+            "their_missing": [
+                "No procedural memory — versioned workflows that evolve from failures (recording the violated assumption + a precondition)",
+                "No cognitive profile — a ready-to-use system prompt generated from all memory",
+                "No native multilingual retrieval",
+                "MCP-based Claude Code integration — Mengram also ships deterministic auto-save/auto-recall hooks + a capture-policy privacy boundary",
+            ],
+            "has_semantic": "&#x2705;",
+            "has_episodic": "&#x2705;",
+            "has_multiuser": "&#x2705;",
+            "has_graph": "&#x2705;",
+            "has_mcp": "&#x2705;",
+            "has_selfhost": "&#x2705;",
+            "their_price": "Free (OSS, MIT), managed cloud available",
+            "best_for_them": "Maximum recall accuracy on long-horizon fact retrieval — if benchmark-topping semantic/temporal recall is the goal, Hindsight is excellent.",
+            "best_for_us": "When how-you-work matters as much as what-you-said: procedural memory with failure-driven evolution, a cognitive profile, deterministic Claude Code hooks, a server-side capture boundary (deny by category/keyword), and multilingual retrieval.",
+            "website": "https://hindsight.vectorize.io",
+            "seo_title": "Mengram vs Hindsight — Retrieval vs Workflow Memory (2026)",
+            "seo_description": "Hindsight leads LongMemEval with excellent retrieval. Mengram adds procedural memory (workflows that evolve from failures), a cognitive profile, Claude Code hooks, and a capture-policy privacy boundary. Honest comparison.",
+            "seo_keywords": "hindsight alternative, Mengram vs Hindsight, hindsight vectorize, agent memory, procedural memory, claude code memory, LongMemEval",
+        },
         "mem0": {
             "slug": "mem0",
             "name": "Mem0",
@@ -2109,7 +2188,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "website": "https://www.getzep.com",
             "seo_title": "Mengram vs Zep — AI Memory Comparison (2026)",
             "seo_description": "Compare Mengram and Zep for AI agent memory. Mengram offers 3 memory types, procedural learning, and native multilingual support in 23 languages. Open-source, plans from $5/mo vs Zep enterprise pricing.",
-            "seo_keywords": "Zep alternative, Mengram vs Zep, AI memory comparison, getzep alternative, multilingual AI memory, AI memory API",
+            "seo_keywords": "Zep alternative, zep pricing, zep ai memory pricing 2026, zep memory pricing, zep alternatives, Mengram vs Zep, AI memory comparison, getzep alternative, multilingual AI memory, AI memory API",
         },
         "letta": {
             "slug": "letta",
@@ -2143,7 +2222,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "website": "https://www.letta.com",
             "seo_title": "Mengram vs Letta (MemGPT) — AI Memory Comparison (2026)",
             "seo_description": "Compare Mengram and Letta (MemGPT) for AI agent memory. Mengram offers semantic + episodic + procedural memory, self-improving workflows, and native multilingual support in 23 languages. Plans from $5/mo.",
-            "seo_keywords": "Letta alternative, MemGPT alternative, Mengram vs Letta, AI memory comparison, multilingual AI memory, best AI memory tool 2026",
+            "seo_keywords": "Letta alternative, MemGPT alternative, letta formerly memgpt, letta vs memgpt 2026, letta successor to memgpt, letta vs memgpt differences, Mengram vs Letta, AI memory comparison, multilingual AI memory, best AI memory tool 2026",
         },
         "langmem": {
             "slug": "langmem",
@@ -2267,6 +2346,500 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "give-claude-chatgpt-long-term-memory-mcp": {
+            "slug": "give-claude-chatgpt-long-term-memory-mcp",
+            "title": "How to Give Claude or ChatGPT Long-Term Memory Using MCP",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ["Guide", "MCP"],
+            "excerpt": "The Model Context Protocol (MCP) lets you attach a persistent memory backend to Claude, ChatGPT, Cursor, and other MCP clients — so they remember across sessions. Here is exactly how the memory-over-MCP setup works and how to wire it up.",
+            "seo_title": "How to Give Claude or ChatGPT Long-Term Memory Using MCP (2026)",
+            "seo_description": "Give Claude, ChatGPT, or Cursor long-term memory using MCP. How a memory MCP server works, how to add it to your client config, and the one instruction that makes the agent actually use it.",
+            "seo_keywords": "give claude long-term memory mcp, chatgpt long term memory mcp, how to give claude memory, mcp memory server, long term memory claude chatgpt, claude memory mcp, add memory to claude",
+            "content_html": """
+<h2>The idea: memory as an MCP server</h2>
+<p>The Model Context Protocol (MCP) is an open standard for connecting AI clients to external tools and data. A <strong>memory MCP server</strong> exposes tools like <code>remember</code>, <code>recall</code>, and <code>search</code> — so any MCP-capable client (Claude Desktop, Claude Code, ChatGPT with connectors, Cursor, Windsurf) can store and retrieve long-term memory that lives outside the context window and survives across sessions.</p>
+
+<h2>Why MCP is the right layer</h2>
+<p>Without it, each client is stateless — it forgets between sessions. Building memory into one client doesn't help the others. MCP solves both: memory lives in a server keyed to you, and every MCP client can reach the same store, so context built in Claude is available in Cursor and vice versa.</p>
+
+<h2>How to set it up</h2>
+<p>1. <strong>Pick a memory backend that speaks MCP.</strong> <a href="https://mengram.io">Mengram</a> runs a remote MCP server at <code>mengram.io/mcp</code> (listed in the official MCP registry); it does server-side extraction of facts, events, and workflows so you send raw text and it structures the memory.</p>
+<p>2. <strong>Add it to your client's config.</strong> For Claude Desktop / Cursor, add the server to the MCP config (a JSON block with the URL and your Bearer key). For Claude Code, install the plugin. For ChatGPT, add it as a custom connector in settings.</p>
+<pre><code>{
+  "mcpServers": {
+    "mengram": {
+      "url": "https://mengram.io/mcp",
+      "headers": { "Authorization": "Bearer om-your-key" }
+    }
+  }
+}</code></pre>
+<p>3. <strong>Tell the model when to use it.</strong> An MCP tool the model forgets to call is useless. Add one instruction to your system prompt / rules: "Before answering anything user-specific, call recall. When the user states a durable fact, decision, or preference, call remember."</p>
+
+<h2>What you get</h2>
+<p>Cross-session memory (it remembers you next time), cross-tool memory (same store from Claude, ChatGPT, Cursor), and — with a memory layer that does more than facts — episodic events and procedural workflows too. Claude Code users can go further with hooks that capture automatically; see <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions</a>.</p>
+<p>Try a zero-account local preview of what memory would know from your history: <code>pip install mengram-ai &amp;&amp; mengram try</code>.</p>
+""",
+        },
+        "does-cursor-remember-between-sessions": {
+            "slug": "does-cursor-remember-between-sessions",
+            "title": "Does Cursor Remember Between Sessions? (And How to Make It)",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Cursor', 'Guide'],
+            "excerpt": "Cursor reads your .cursorrules and can reference open files, but it doesn't carry decisions, context, or history across new sessions by default. Here's what persists, what doesn't, and how to add real cross-session memory via MCP.",
+            "seo_title": "Does Cursor Remember Between Sessions? What Persists and How to Add Memory (2026)",
+            "seo_description": "Does Cursor remember between sessions? Not really — .cursorrules is static and context resets each session. What persists, what doesn't, and how to add persistent cross-session (and cross-tool) memory to Cursor via MCP.",
+            "seo_keywords": "does cursor remember between sessions, cursor memory between sessions, cursor remember context, cursor persistent memory, cursor forgets, cursor session memory",
+            "content_html": """
+<h2>Short answer</h2>
+<p><strong>Not by default.</strong> Cursor reads your <code>.cursorrules</code> file and can reference files you have open or @-mention, but it doesn't remember the decisions you made, the reasoning behind them, or what happened in previous sessions. Each new chat starts close to zero and you re-establish context.</p>
+
+<h2>What persists</h2>
+<ul>
+<li><strong>.cursorrules / rules files</strong> — static instructions loaded into context. Good for stable conventions; limited to what you wrote by hand.</li>
+<li><strong>Open / @-mentioned files</strong> — Cursor sees your code, so it can re-read it. Re-reading code isn't remembering your decisions about it.</li>
+<li><strong>Codebase indexing</strong> — helps Cursor find relevant code, but it's retrieval over files, not memory of your intent or history.</li>
+</ul>
+
+<h2>What doesn't</h2>
+<p>Decisions, constraints stated once, approaches you rejected, and anything from a prior chat. The rules file is a snapshot you maintain by hand, and it drifts — it'll say "3-step deploy" for a month after the process became four steps.</p>
+
+<h2>How to add real memory to Cursor</h2>
+<p>Cursor supports the Model Context Protocol (MCP), so you can give it a memory backend as an MCP server. Add a memory server to <code>~/.cursor/mcp.json</code>, then a short paragraph in your rules telling Cursor when to use it:</p>
+<blockquote>Before starting significant work, call <code>recall</code> with the task topic. After completing significant work or when the user states a decision or constraint, call <code>remember</code> with a one-line summary.</blockquote>
+<p>With that, capture and recall become part of every session instead of manual bookkeeping. <a href="https://mengram.io">Mengram</a> provides the MCP server (and the same memory works across Claude Code, Codex, and the API — so context built in one tool is there in the others).</p>
+<p>Related: <a href="/blog/cursor-mcp-memory-setup">setting up an MCP memory server for Cursor</a> · <a href="/blog/cursor-rules-memory">.cursorrules and its limits</a></p>
+""",
+        },
+        "cursor-rules-memory": {
+            "slug": "cursor-rules-memory",
+            "title": ".cursorrules and Memory: Why Rules Files Can't Remember Yesterday's Decisions",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Cursor', 'Guide'],
+            "excerpt": ".cursorrules gives Cursor static project instructions. It's useful for conventions but can't capture what happened in a session or the decision you made an hour ago. Here's what it's good for, where it breaks, and how to add the dynamic half.",
+            "seo_title": ".cursorrules and Memory — What Rules Files Do and Their Limits (2026)",
+            "seo_description": ".cursorrules gives Cursor static instructions loaded every session. What it covers, why it drifts out of date, and how to add automatic memory that captures decisions and history a rules file can't.",
+            "seo_keywords": "cursor rules memory, .cursorrules, cursor rules file, make cursor remember, cursor project rules, cursor memory rules",
+            "content_html": """
+<h2>What .cursorrules does well</h2>
+<p><code>.cursorrules</code> (and the newer rules directory) gives Cursor project-specific instructions loaded into every session: your stack, conventions, style rules, and hard constraints. It's free, version-controllable, and shared across your team. For stable facts that rarely change, it's exactly the right tool.</p>
+
+<h2>Where it breaks</h2>
+<p>A rules file is a <strong>static snapshot you maintain by hand.</strong> That creates three problems:</p>
+<ul>
+<li><strong>It only holds what you wrote down.</strong> The decision from an hour ago isn't in it unless you stopped and added it.</li>
+<li><strong>It drifts.</strong> Your process changes; the file still describes the old one until someone updates it.</li>
+<li><strong>It has no capture step.</strong> Nothing writes to it automatically — so session history, outcomes, and evolving workflows never land there.</li>
+</ul>
+
+<h2>The dynamic half: memory that updates itself</h2>
+<p>Keep the boring stable stuff in <code>.cursorrules</code>, and add a memory layer for the things that change — decisions, session history, workflows. Via MCP, Cursor can call <code>remember</code>/<code>recall</code> against a backend that captures as you work and surfaces relevant context per prompt.</p>
+<p><a href="https://mengram.io">Mengram</a> pairs with your rules file rather than replacing it: rules for what never changes, memory for what does. It can even generate an up-to-date rules file from what it has learned.</p>
+<p>Related: <a href="/blog/does-cursor-remember-between-sessions">does Cursor remember between sessions?</a></p>
+""",
+        },
+        "cursor-mcp-memory-setup": {
+            "slug": "cursor-mcp-memory-setup",
+            "title": "Setting Up an MCP Memory Server for Cursor (Step by Step)",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Cursor', 'Guide'],
+            "excerpt": "Cursor supports MCP, which means you can give it a persistent memory backend as a server. Here's how to wire up an MCP memory server in Cursor, plus the one rules paragraph that makes the agent actually use it.",
+            "seo_title": "MCP Memory Server for Cursor — Setup Guide (2026)",
+            "seo_description": "How to set up an MCP memory server for Cursor so it remembers across sessions. Configure ~/.cursor/mcp.json, add the rules paragraph that triggers recall/remember, and get cross-tool memory.",
+            "seo_keywords": "cursor mcp memory server, memory mcp server cursor, cursor mcp memory, mcp memory cursor, cursor memory server setup, cursor persistent memory mcp",
+            "content_html": """
+<h2>Why MCP is the right path for Cursor</h2>
+<p>Cursor doesn't have lifecycle hooks the way Claude Code does, but it does support the Model Context Protocol. That means you can attach a memory backend as an MCP server — the agent gets <code>remember</code> / <code>recall</code> / <code>search</code> tools, and your memory lives outside the context window and outside static files.</p>
+
+<h2>Step 1: add the MCP server</h2>
+<p>Edit <code>~/.cursor/mcp.json</code> (create it if it doesn't exist) and add your memory server. For a remote (hosted) server it looks like:</p>
+<pre><code>{
+  "mcpServers": {
+    "mengram": {
+      "url": "https://mengram.io/mcp",
+      "headers": { "Authorization": "Bearer om-your-key" }
+    }
+  }
+}</code></pre>
+<p>Reload Cursor (Cmd/Ctrl+Shift+P → Reload Window). The memory tools should now be available to the agent.</p>
+
+<h2>Step 2: the rules paragraph that makes it automatic</h2>
+<p>An MCP tool the agent forgets to call is useless. Add this to your rules so recall/capture become part of every session:</p>
+<blockquote>Before starting significant work, call <code>recall</code> with the task topic. After completing significant work, or when the user states a decision, preference, or constraint, call <code>remember</code> with a one-line summary.</blockquote>
+
+<h2>Step 3 (optional): seed it and go cross-tool</h2>
+<p>Because it's a memory layer, not a file, the same store works from Claude Code and the API too — context built in one tool shows up in the others. With <a href="https://mengram.io">Mengram</a> you can also preview what memory would know from your existing history with zero account: <code>pip install mengram-ai &amp;&amp; mengram try</code>.</p>
+<p>Related: <a href="/blog/does-cursor-remember-between-sessions">does Cursor remember between sessions?</a> · <a href="/blog/cursor-rules-memory">.cursorrules and its limits</a></p>
+""",
+        },
+        "memory-api-for-ai-agents": {
+            "slug": "memory-api-for-ai-agents",
+            "title": "How to Add a Memory API to Your AI Agent Product (Per-User Memory in ~10 Lines)",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "6",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "If you're building an agent product, every user needs their own memory — facts, history, and workflows that persist across sessions. Here's what a memory API needs to give you (isolation, server-side extraction, three memory types) and how to wire it up.",
+            "seo_title": "Memory API for AI Agents — Add Per-User Persistent Memory to Your Agent Product (2026)",
+            "seo_description": "Add a memory API to your AI agent product: per-user isolation, server-side fact/event/workflow extraction, and recall in ~10 lines. What to look for in an agent memory backend and how to integrate it via REST or MCP.",
+            "seo_keywords": "memory api for ai agents, agent memory backend, ai agent memory api, multi user memory llm, per user memory, memory layer for agents, mem0 alternative api",
+            "content_html": """
+<h2>What "memory" means for an agent product</h2>
+<p>When you ship an agent to real users, each user accumulates context — preferences, past interactions, decisions, the workflows your agent runs for them. Holding that in the context window doesn't scale (it resets, and it's not per-user). You need a <strong>memory API</strong>: a backend that stores and retrieves each user's memory, isolated from every other user's, and persists across sessions.</p>
+
+<h2>What a good agent memory API gives you</h2>
+<ul>
+<li><strong>Per-user isolation.</strong> One API key, memory scoped by <code>user_id</code> — user A never sees user B's memory.</li>
+<li><strong>Server-side extraction.</strong> You send raw conversation turns; the backend extracts facts, events, and workflows, deduplicates them, and resolves contradictions. You shouldn't have to prompt-engineer this yourself.</li>
+<li><strong>More than facts.</strong> Semantic (facts), episodic (events/decisions), and procedural (workflows) — because agents need to remember <em>how</em> to do things, not just <em>what</em> a user said.</li>
+<li><strong>Recall that ranks well.</strong> Hybrid retrieval (vector + keyword + fusion), recency/importance weighting, and honest quality signals.</li>
+<li><strong>An exit path.</strong> Full export and per-user deletion — for your users' trust and your own compliance.</li>
+</ul>
+
+<h2>Wiring it up (Mengram example)</h2>
+<pre><code>pip install mengram-ai
+
+from mengram import Mengram
+m = Mengram(api_key="om-...")
+
+# each of YOUR users gets an isolated store
+m.add([{"role": "user", "content": "I prefer email, and my last order arrived damaged"}],
+      user_id="customer-4812")
+
+# later, any session, any of your agents
+m.search("how should I contact this customer?", user_id="customer-4812")
+# -> prefers email; recent damaged-order incident</code></pre>
+<p>Same isolation over MCP for tool-native agents, and webhooks if you want to react when a user's memory changes. Full API on the <a href="https://mengram.io/for-agents">agent-builder page</a>.</p>
+
+<h2>Build vs. buy</h2>
+<p>You can build memory on Postgres + pgvector yourself — many teams start there. The parts that eat time are the ones a memory API handles for you: extraction quality, contradiction resolution, decay/ranking, multi-tenant isolation done right, and the export/delete lifecycle. If memory isn't your core product, buying the layer (or self-hosting an open one) is usually the faster path.</p>
+<p>Related: <a href="/blog/multi-user-memory-ai-agents">per-user memory isolation patterns</a> · <a href="/vs/mem0">Mengram vs Mem0</a></p>
+""",
+        },
+        "multi-user-memory-ai-agents": {
+            "slug": "multi-user-memory-ai-agents",
+            "title": "Multi-User Memory for AI Agents: Per-User Isolation Patterns That Don't Leak",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "Shipping an agent to many users means each one needs isolated memory — and a leak between users is a serious bug. Here are the isolation patterns for multi-tenant agent memory, and the mistakes that cause cross-user leaks.",
+            "seo_title": "Multi-User Memory for AI Agents — Per-User Isolation Patterns (2026)",
+            "seo_description": "How to give each user of your AI agent isolated memory without cross-user leaks. Multi-tenant memory isolation patterns (user_id scoping, sub-users, per-key scopes) and the mistakes to avoid.",
+            "seo_keywords": "multi user memory, per user memory llm, multi tenant agent memory, ai agent memory isolation, user_id memory, memory per user ai",
+            "content_html": """
+<h2>Why isolation is the hard part</h2>
+<p>Storing memory is easy. Storing it so that user A's private facts never surface in user B's session — across thousands of users, over months — is the part that bites. A cross-user memory leak isn't a cosmetic bug; it's a privacy incident. Here's how to get it right.</p>
+
+<h2>Pattern 1: user_id scoping (the baseline)</h2>
+<p>Every write and every read carries a <code>user_id</code>. The store filters by it at query time. Simple and correct — as long as <em>every</em> path enforces it. The classic leak is a code path (an admin tool, a background job, a "get all" endpoint) that forgets the filter. Enforce it at the store layer, not per-endpoint, so nothing can bypass it.</p>
+
+<h2>Pattern 2: sub-users (users within a user)</h2>
+<p>If your product itself has tenants — say each of your customers has their own end-users — you need a second axis. A <code>sub_user_id</code> under each <code>user_id</code> gives you two levels of isolation without two accounts. Useful for B2B2C agent products.</p>
+
+<h2>Pattern 3: per-key scopes</h2>
+<p>Hand a component an API key that can only write to a specific scope. The agent physically cannot pollute memory outside its lane — isolation enforced by the credential, not by discipline.</p>
+
+<h2>The mistakes that cause leaks</h2>
+<ul>
+<li><strong>Filtering at read but not at write</strong> — mislabeled writes end up in the wrong bucket permanently.</li>
+<li><strong>Enforcing per-endpoint</strong> instead of at the store layer — one forgotten filter leaks.</li>
+<li><strong>Sharing embeddings across users</strong> — vector search returns another user's vectors if the namespace isn't scoped.</li>
+<li><strong>No capture boundary</strong> — sensitive content (health, legal, credentials) gets stored when it shouldn't, per user, with no way to scope it out.</li>
+</ul>
+
+<h2>Doing it with a memory layer</h2>
+<p><a href="https://mengram.io/for-agents">Mengram</a> gives you <code>user_id</code> isolation and a <code>sub_user_id</code> axis out of the box (one API key, isolated facts/events/workflows/profile per user), plus a server-side capture policy so sensitive categories are dropped before they're ever stored. Deletion is per-user and complete, with a per-table receipt.</p>
+<p>Related: <a href="/blog/memory-api-for-ai-agents">adding a memory API to your agent product</a></p>
+""",
+        },
+        "procedural-memory-ai-agents": {
+            "slug": "procedural-memory-ai-agents",
+            "title": "Procedural Memory for AI Agents: Workflows That Learn From Failure",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "6",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "Most agent memory stores facts. Procedural memory stores how-to — the workflows an agent repeats — and crucially, revises them when they fail. Here's what procedural memory is, why it's the underserved layer, and how to use it.",
+            "seo_title": "Procedural Memory for AI Agents — Workflows That Evolve From Failure (2026)",
+            "seo_description": "Procedural memory lets AI agents remember how to do things, not just what happened — and revise workflows when they fail. What procedural memory is, why fact-only memory tools skip it, and how to store versioned, failure-aware workflows.",
+            "seo_keywords": "procedural memory ai agents, procedural memory llm, agent workflow memory, agent learns from failure, memp procedural memory, ai agent skill memory",
+            "content_html": """
+<h2>Three kinds of memory, and the one everyone skips</h2>
+<p>Psychology splits long-term memory into <strong>semantic</strong> (facts — "Paris is the capital of France"), <strong>episodic</strong> (events — "I visited Paris last spring"), and <strong>procedural</strong> (how-to — "I know how to ride a bike"). Nearly every AI memory tool ships the first two and skips the third. But procedural memory is where agents waste the most: an agent that re-derives your deploy process from scratch every run is a permanent intern, however smart the model.</p>
+
+<h2>Why procedural memory is harder</h2>
+<p>A fact is extracted once and stored. A workflow isn't — it has to <em>change</em> when it fails. A deploy procedure that worked ten times can break on the eleventh because an assumption shifted ("the migration had already run"). Procedural memory has to capture that failure and revise the workflow, or it rots into the same stale instructions it was meant to replace.</p>
+<p>There's fresh research on exactly this — the Memp paper (Zhejiang University + Alibaba) built procedural memory from agents' own trajectories and found the strongest strategy was <em>reflecting on failures to revise the stored procedure</em>, not just banking successes.</p>
+
+<h2>What good procedural memory records</h2>
+<ul>
+<li><strong>Versioned steps</strong> — v1 → v2 (added a step after a failure) → v3, not overwrite-in-place.</li>
+<li><strong>The violated assumption</strong> — not "step 3 failed" but "the belief that the migration had run turned out false." That's what prevents the repeat.</li>
+<li><strong>A precondition to check next time</strong> — derived from the failure, carried into recall so the agent verifies before trusting the workflow.</li>
+<li><strong>Success/failure counts per version</strong> — so a revision has to re-earn trust instead of inheriting it.</li>
+</ul>
+
+<h2>Using it</h2>
+<p><a href="https://mengram.io">Mengram</a> stores procedural memory as a first-class type: workflows auto-detected from repeated episodes, evolved on failure (recording the violated assumption + precondition), and returned by recall alongside their track record. An agent loading a proven v3 doesn't repeat the two mistakes that produced it.</p>
+<pre><code>m.procedures(query="deploy backend", user_id="user-123")
+# -> deploy-to-railway (v3, 11 successes) — verify first: alembic current == head</code></pre>
+<p>Related: <a href="/blog/semantic-episodic-procedural-memory">the three memory types explained</a> · <a href="/for-agents">memory API for agent builders</a></p>
+""",
+        },
+        "persist-context-claude-code": {
+            "slug": "persist-context-claude-code",
+            "title": "How to Persist Context in Claude Code (So It Doesn't Start From Zero)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Persisting context in Claude Code means keeping the things that matter outside the context window and reloading them automatically. Here's the mechanism — the SessionStart and Stop hooks — and how to wire it up, with or without a memory service.",
+            "seo_title": "How to Persist Context in Claude Code — Hooks, CLAUDE.md, and Memory (2026)",
+            "seo_description": "Persist context in Claude Code so a new session doesn't start from zero. The SessionStart/Stop hook mechanism explained, how to capture and reload context automatically, and where CLAUDE.md falls short.",
+            "seo_keywords": "persist context claude code, claude code persist context, keep context claude code, claude code context persistence, claude code save context, claude code load context",
+            "content_html": """
+<h2>What "persist context" actually requires</h2>
+<p>To persist context in Claude Code, you need two things: a place to <em>store</em> context that survives the session (outside the context window), and a moment to <em>reload</em> it into a fresh session. Claude Code gives you both as lifecycle hooks — the missing piece most setups skip is the storage layer.</p>
+
+<h2>The hook mechanism</h2>
+<ul>
+<li><strong>Stop hook</strong> — fires when Claude finishes a turn. This is where you capture what happened (the decision, the outcome, the workflow) into durable storage.</li>
+<li><strong>SessionStart hook</strong> — fires on a new session, on <code>/clear</code>, on resume, and <em>after compaction</em>. This is where you read state back and print it so Claude sees it as context.</li>
+<li><strong>UserPromptSubmit hook</strong> — fires before each prompt; optionally fetch only the context relevant to that prompt instead of front-loading everything.</li>
+</ul>
+<p>The pattern works with any storage — a JSON file, a database, or a memory service. The hooks are the seam; the storage is your choice.</p>
+
+<h2>Why CLAUDE.md is only half of it</h2>
+<p>CLAUDE.md is a static reload with no capture step — it holds what you wrote by hand, not what happened. Persisting context properly means the capture half runs automatically, so you're not relying on remembering to update a file.</p>
+
+<h2>Doing it with a memory layer</h2>
+<p><a href="https://mengram.io">Mengram</a> implements this loop as a plugin: the Stop hook extracts facts, decisions, and workflows into persistent memory (secrets redacted locally), and the SessionStart hook reloads a distilled profile every session. Two commands:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>Prefer to roll your own? The same hook events are documented by Anthropic — a small script writing to a local file gets you a working prototype. The point is to have <em>both</em> halves: capture on Stop, reload on SessionStart.</p>
+<p>Related: <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions?</a> · <a href="/blog/claude-code-compaction-context-loss">surviving auto-compaction</a></p>
+""",
+        },
+        "claude-code-memory-vs-memory-leak": {
+            "slug": "claude-code-memory-vs-memory-leak",
+            "title": "Claude Code Memory — Two Very Different Problems (Persistent Memory vs. RAM Leaks)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "4",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Searching 'Claude Code memory' returns two unrelated things: developers wanting persistent memory across sessions, and developers fighting a RAM memory leak. Here's how to tell which one you have and what to do about each.",
+            "seo_title": "Claude Code Memory: Persistent Context vs. RAM Memory Leak (Which Do You Have?)",
+            "seo_description": "'Claude Code memory' means two different things: persistent memory across sessions, or a RAM/OOM memory leak. How to tell them apart and fix each — the persistent-memory setup and the memory-leak workarounds.",
+            "seo_keywords": "claude code memory, claude code memory leak, claude code out of memory, claude code RAM, claude code persistent memory, claude code memory usage",
+            "content_html": """
+<h2>Two problems, one search term</h2>
+<p>"Claude Code memory" is ambiguous. Developers searching it want one of two completely different things:</p>
+<ol>
+<li><strong>Persistent memory</strong> — "why does Claude Code forget my project every session?"</li>
+<li><strong>A RAM memory leak</strong> — "why is Claude Code using 120 GB of RAM and getting OOM-killed?"</li>
+</ol>
+<p>This page disambiguates so you land on the right fix.</p>
+
+<h2>If you have the RAM leak</h2>
+<p>There are real, heavily-upvoted reports of Claude Code memory <em>consumption</em> growing until the process is OOM-killed (<a href="https://github.com/anthropics/claude-code/issues/4953">issue #4953</a>, 73+ upvotes; <a href="https://github.com/anthropics/claude-code/issues/11315">#11315</a>, 56+). Practical mitigations while Anthropic addresses it: restart long-running idle sessions, keep an eye on the <code>/tmp/claude-*</code> working files (<a href="https://github.com/anthropics/claude-code/issues/8856">#8856</a>), and avoid extremely long single sessions. This is a runtime bug, not something a memory tool fixes — track the issues above.</p>
+
+<h2>If you want persistent memory</h2>
+<p>If your actual problem is that Claude Code forgets your context between sessions, that's a different thing entirely — and it <em>is</em> solvable. Claude Code doesn't carry decisions, constraints, or working state across a new session or an auto-compaction by default. The fix is a memory layer wired to the SessionStart/Stop hooks that captures context as you work and reloads it every session.</p>
+<p><a href="https://mengram.io">Mengram</a> does this via its plugin; see <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions</a> and <a href="/blog/claude-code-remember-project-context">how to make Claude Code remember your project</a> for the full walkthrough.</p>
+
+<h2>Quick test: which one is it?</h2>
+<p>Open Activity Monitor / Task Manager while Claude Code runs. If RAM climbs without bound → you have the leak (a runtime issue). If RAM is fine but Claude keeps forgetting what you told it → you want persistent memory (a solvable setup).</p>
+""",
+        },
+        "claude-code-memory-md": {
+            "slug": "claude-code-memory-md",
+            "title": "Claude Code memory.md and CLAUDE.md: What They Do and Where They Fall Short",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "CLAUDE.md (and memory-style markdown files) give Claude Code static project instructions. They're useful and free — but they're snapshots you maintain by hand. Here's exactly what they cover, what they don't, and how to add the dynamic half.",
+            "seo_title": "Claude Code memory.md / CLAUDE.md — What It Does and Its Limits (2026)",
+            "seo_description": "CLAUDE.md and memory markdown files give Claude Code static instructions loaded every session. What they cover, why they go stale, and how to add automatic, dynamic memory that captures decisions as they happen.",
+            "seo_keywords": "claude code memory.md, claude.md, claude code memory files, claude code memory file, claude md file, claude code instructions file",
+            "content_html": """
+<h2>What CLAUDE.md does</h2>
+<p><code>CLAUDE.md</code> is a markdown file at your repo root that Claude Code loads into context at the start of every session. It's the standard way to give Claude persistent, project-specific instructions: your stack, coding conventions, directory layout, and hard rules ("always run migrations before deploy"). It's free, simple, and version-controllable — commit it and your whole team shares the same baseline.</p>
+
+<h2>Where it falls short</h2>
+<p>CLAUDE.md is a <strong>static snapshot you maintain by hand.</strong> Three concrete limits:</p>
+<ul>
+<li><strong>It only holds what you remembered to write.</strong> The decision you made forty minutes ago isn't in it unless you stopped and added it — and nobody does that reliably.</li>
+<li><strong>It goes stale.</strong> Your deploy process changes from 3 steps to 4; the file still says 3 until someone updates it.</li>
+<li><strong>It fades after compaction.</strong> There's a known issue where CLAUDE.md guidance loses force once a session heavily compacts (<a href="https://github.com/anthropics/claude-code/issues/6354">#6354</a>).</li>
+</ul>
+
+<h2>The dynamic half: memory that updates itself</h2>
+<p>CLAUDE.md is the right tool for stable facts. For the things that change — decisions, session history, evolving workflows — you want capture that runs automatically. Claude Code's Stop and SessionStart hooks make this possible: capture each turn's important state, reload it every new session.</p>
+<p><a href="https://mengram.io">Mengram</a> pairs with CLAUDE.md rather than replacing it: keep the boring stable facts in the file, let the plugin handle the dynamic memory. It can even generate an up-to-date CLAUDE.md from what it has learned (<code>mengram rules</code>). Setup:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>Related: <a href="/blog/claude-code-remember-project-context">4 methods to make Claude Code remember your project</a>.</p>
+""",
+        },
+        "does-claude-code-remember-between-sessions": {
+            "slug": "does-claude-code-remember-between-sessions",
+            "title": "Does Claude Code Remember Between Sessions? (What It Keeps, What It Forgets)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "6",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Short answer: partially. Claude Code can resume a session and read CLAUDE.md, but it does not carry your decisions, context, or working state across new sessions by default. Here's exactly what persists, what doesn't, and how to get true cross-session memory.",
+            "seo_title": "Does Claude Code Remember Between Sessions? What Persists and What Doesn't (2026)",
+            "seo_description": "Does Claude Code remember between sessions? Partially — resume and CLAUDE.md help, but decisions, context, and working state are lost on a new session or after compaction. What persists, what doesn't, and how to add true persistent memory.",
+            "seo_keywords": "does claude code remember between sessions, claude code memory between sessions, claude code remember context, claude code persistent memory, claude code session memory, claude code forgets",
+            "content_html": """
+<h2>The short answer</h2>
+<p><strong>Partially.</strong> Claude Code can <em>resume</em> a previous session and it reads your <code>CLAUDE.md</code> on start — but by default it does <strong>not</strong> carry your decisions, the reasoning behind them, or your working context across a genuinely new session, a <code>/clear</code>, or an auto-compaction. Each fresh session starts close to zero and you re-explain.</p>
+
+<h2>What DOES persist</h2>
+<ul>
+<li><strong><code>CLAUDE.md</code> / <code>AGENTS.md</code>:</strong> static instructions you wrote by hand. Loaded every session — but only holds what you remembered to write down, and even this loses force after heavy compaction (<a href="https://github.com/anthropics/claude-code/issues/6354">issue #6354</a>).</li>
+<li><strong><code>--resume</code> / <code>--continue</code>:</strong> re-opens a specific prior conversation. Useful, but it's one thread — it doesn't give you cumulative memory across all your work, and a resumed session still compacts.</li>
+<li><strong>Project files:</strong> your code is on disk, so Claude can re-read it. But re-reading a codebase is not the same as remembering the <em>decisions</em> you made about it.</li>
+</ul>
+
+<h2>What does NOT persist</h2>
+<ul>
+<li>Decisions and the reasoning behind them ("we chose Postgres over Mongo because…")</li>
+<li>Constraints you stated once ("never touch the billing table directly")</li>
+<li>Approaches you already tried and rejected</li>
+<li>Working state mid-task after auto-compaction summarizes the conversation and discards the original — a pain with <a href="https://github.com/anthropics/claude-code/issues/17428">300+ combined upvotes</a> on Anthropic's tracker</li>
+</ul>
+
+<h2>Why CLAUDE.md isn't enough</h2>
+<p>The usual advice — "put it in CLAUDE.md" — helps but has a ceiling: the file is static. It captures last week's snapshot, not the decision from forty minutes ago. And nothing auto-updates it: you have to notice something is worth remembering, stop, and write it down. In practice nobody does that reliably, so the file drifts out of date.</p>
+
+<h2>How to get true cross-session memory</h2>
+<p>The durable fix is to keep memory <strong>outside</strong> the context window and re-inject it on every fresh start. Claude Code's <code>SessionStart</code> hook fires on startup, on <code>/clear</code>, on resume, <em>and after compaction</em> — the exact seam where you can reload state that the session lost.</p>
+<p><a href="https://mengram.io">Mengram</a> uses this: a Stop hook captures each turn into persistent memory (secrets redacted locally), and the SessionStart hook reloads your cognitive profile — who you are, what you're building, what you decided — every new session. Setup is two commands:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>You can also preview what memory would know from your existing history with zero account: <code>pip install mengram-ai && mengram import claude-code</code>.</p>
+
+<h2>Honest limits</h2>
+<p>No external memory restores the full pre-compaction transcript — that's gone. What changes is <em>which</em> things survive: structured facts, decisions, and workflows extracted while they were fresh, instead of whatever a token-pressured summary happened to keep. For most "why does Claude keep forgetting my project" frustration, that's the difference that matters.</p>
+<p>Related reading: <a href="/blog/claude-code-compaction-context-loss">why compaction erases context and how to survive it</a>.</p>
+""",
+        },
+        "claude-code-remember-project-context": {
+            "slug": "claude-code-remember-project-context",
+            "title": "How to Make Claude Code Remember Your Project (Stop Re-Explaining Every Session)",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "6",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Re-explaining your stack, conventions, and decisions at the start of every Claude Code session is the #1 friction developers report. Here are the four ways to make project context stick — from CLAUDE.md to hooks-based persistent memory — with the trade-offs of each.",
+            "seo_title": "How to Make Claude Code Remember Your Project Context (4 Methods, 2026)",
+            "seo_description": "Stop re-explaining your project to Claude Code every session. Four methods to make project context, conventions, and decisions persist — CLAUDE.md, rules files, resume, and hooks-based persistent memory — with honest trade-offs.",
+            "seo_keywords": "claude code remember project, claude code project context, claude code forgets project, make claude code remember, claude code context between sessions, claude code memory project",
+            "content_html": """
+<h2>The friction</h2>
+<p>Every new Claude Code session, the same ritual: re-explain the stack, re-state the conventions, and watch it suggest the approach you rejected two weeks ago. The concrete cost is real time — re-establishing context can eat the first 15-30 minutes of a session. Here are the four ways to make project context stick, weakest to strongest.</p>
+
+<h2>1. CLAUDE.md (static, manual)</h2>
+<p>A <code>CLAUDE.md</code> at your repo root is loaded into every session. Put your stack, conventions, and hard constraints there. <strong>Good for:</strong> stable facts that rarely change (language, framework, "always use pnpm"). <strong>Weakness:</strong> it's static and manual — it holds what you remembered to write down, not what happened in yesterday's session, and it goes stale unless you maintain it. After heavy compaction even its guidance fades.</p>
+
+<h2>2. Rules files (scoped, still static)</h2>
+<p>Break guidance into focused rule files. More organized than one big CLAUDE.md, same fundamental limit: static snapshots that depend on you updating them.</p>
+
+<h2>3. --resume / --continue (one thread)</h2>
+<p>Re-open a specific past conversation to carry its context forward. <strong>Good for:</strong> picking up exactly where you left off on one task. <strong>Weakness:</strong> it's a single thread, not cumulative project memory, and a resumed session still compacts and loses state.</p>
+
+<h2>4. Hooks-based persistent memory (dynamic, automatic)</h2>
+<p>The only approach that captures decisions <em>as they happen</em> and reloads them automatically. Claude Code's <code>Stop</code> hook can persist each turn to an external store; the <code>SessionStart</code> hook reloads a distilled profile of your project every new session — including after <code>/clear</code> and compaction, where the other methods lose ground.</p>
+<p>This is what <a href="https://mengram.io">Mengram</a>'s plugin does. Beyond facts, it also learns <em>procedural</em> memory — the workflows you repeat (deploy, test, release) — and when one fails, it records the assumption that broke so the next run doesn't repeat the mistake. Setup:</p>
+<pre><code>mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram
+# optional: seed it from your existing history (secrets redacted locally)
+pip install mengram-ai && mengram import claude-code</code></pre>
+
+<h2>Which should you use?</h2>
+<p>Use <strong>CLAUDE.md</strong> for boring stable facts (it's free and simple), and add <strong>hooks-based memory</strong> for the dynamic stuff — decisions, session history, and workflows that a static file can't keep up with. They compose: the file for what never changes, memory for what does.</p>
+<p>Related: <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions?</a> and <a href="/blog/claude-code-compaction-context-loss">surviving auto-compaction</a>.</p>
+""",
+        },
+        "claude-code-memory-across-machines": {
+            "slug": "claude-code-memory-across-machines",
+            "title": "Claude Code Memory Across Machines: Portable Project Context for Multi-Device Work",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ['Claude Code', 'Guide'],
+            "excerpt": "Work on Claude Code from a laptop and a desktop — or switch between Claude Code and Cursor — and your context doesn't follow you. There's a 34-upvote feature request for portable project memory. Here's how to get it today.",
+            "seo_title": "Claude Code Memory Across Machines — Portable Context for Multi-Device Dev (2026)",
+            "seo_description": "Claude Code memory doesn't follow you between machines or tools. A 34-upvote feature request asks for portable project memory. How to get cross-machine, cross-tool memory today with a hosted or self-hosted memory layer.",
+            "seo_keywords": "claude code memory across machines, claude code multi device, portable claude code memory, claude code memory sync, cross machine claude code, claude code cursor shared memory",
+            "content_html": """
+<h2>The problem</h2>
+<p>Your <code>CLAUDE.md</code> lives in one repo on one machine. Switch to your other laptop, or move from Claude Code to Cursor, and the context you built doesn't come with you. There's an open feature request on Anthropic's tracker for <a href="https://github.com/anthropics/claude-code/issues/25739">portable project memory across machines</a> (34+ upvotes) — it's a recognized gap.</p>
+
+<h2>Why local files don't solve it</h2>
+<p>CLAUDE.md and rules files are per-repo, per-machine. You can commit them to git to sync across machines, but that only covers static instructions — not session history, decisions, or the working memory that accumulates as you use the tool. And it does nothing for cross-<em>tool</em> portability (Claude Code ↔ Cursor ↔ Codex).</p>
+
+<h2>The fix: memory in a layer, not a file</h2>
+<p>If memory lives in a hosted (or self-hosted) layer keyed to <em>you</em> rather than to a file on one disk, it follows you everywhere that can reach it. <a href="https://mengram.io">Mengram</a> works this way: the same memory is available from Claude Code on your laptop, Claude Code on your work machine, Cursor via MCP, and the API — because it's one store, not a file.</p>
+<pre><code># same two commands on every machine — same memory
+mkdir -p ~/.mengram && echo '{"api_key": "om-your-key"}' > ~/.mengram/config.json
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</code></pre>
+<p>For Cursor or other MCP-capable tools, point them at the same account over MCP and the context built in one tool is there in the other.</p>
+
+<h2>Privacy and self-hosting</h2>
+<p>If a hosted store isn't acceptable for your work, the core is Apache 2.0 and self-hostable — run it on your own infra and keep the same portable-memory behavior across your machines. You can also scope what gets captured (deny by category or keyword) so sensitive content never leaves your machine in the first place.</p>
+<p>Related: <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions?</a></p>
+""",
+        },
+        "rrf-scores-not-similarities": {
+            "slug": "rrf-scores-not-similarities",
+            "title": "Our Monitoring Said 62% of Retrievals Were Failing. The Bug Was Two Score Scales in One Column.",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ["Engineering", "RAG"],
+            "excerpt": "A near-miss production incident: RRF fusion scores (~1/60) and cosine rerank scores (0-1) logged into the same top_score column made healthy retrieval look catastrophic. Why a fused ranking score is not a similarity, and how to monitor hybrid search without 3am false alarms.",
+            "seo_title": "RRF Scores Are Not Similarities: A Hybrid-Search Monitoring Post-Mortem",
+            "seo_description": "Reciprocal Rank Fusion outputs ~1/60 for a rank-1 hit; cosine rerank outputs 0-1. Mixing both in one score column made 62% of retrievals look failed. How to monitor hybrid search correctly — count zeros, not thresholds.",
+            "seo_keywords": "reciprocal rank fusion score, RRF score meaning, hybrid search monitoring, rerank vs fusion score, RAG retrieval quality, rrf k=60, vector search score threshold",
+            "content_html": """
+<h2>The scare</h2>
+<p>Hybrid retrieval over personal memory — vector similarity + BM25, fused with Reciprocal Rank Fusion, optional cross-encoder rerank on some tiers. Every search logs <code>top_score</code> for quality monitoring. Analyzing 10,706 logged searches, I applied the obvious threshold — <code>top_score &lt; 0.3</code> = weak retrieval. Result: 62% "failures," a dozen users at "100% failure with avg score 0.017," and a terrifying month-over-month "degradation." One of the "100% failed" users was a paying customer with a thousand searches. I was halfway into incident mode.</p>
+
+<h2>The tell</h2>
+<p>A search for an exact entity name — a guaranteed hit — logged top_score 0.0426. And the "failing" users all averaged 0.016-0.021. Then it clicked: RRF scores are <code>1/(k + rank)</code> with the standard k=60. Top rank = 1/60 ≈ 0.0167. My "catastrophic" users weren't failing — <strong>their top result was rank-1 almost every time.</strong> An average of 0.017 is what <em>perfect</em> RRF retrieval looks like.</p>
+
+<h2>What actually happened</h2>
+<p>Requests that go through the reranker log cosine-style scores (0-1 scale, 0.3+ = good). Requests on the raw RRF path log fusion scores (0.016-0.05 scale, where 0.017 = excellent). Both landed in the same <code>top_score</code> column with no scale tag. Every aggregate over that column — means, z-scores, my failure thresholds, even the health-monitoring cron — was averaging apples with orbital velocities. The "month-over-month degradation" was just the RRF-path share growing as more traffic moved to hybrid.</p>
+<p>What survived scale-correction: true failure (zero results) was 9-13%, driven mostly by two accounts whose agents were querying literally empty stores — a real problem, but a completely different one than "retrieval is broken."</p>
+
+<h2>Lessons that generalize</h2>
+<ol>
+<li><strong>A fused ranking score is not a similarity.</strong> RRF outputs rank information, not confidence. The moment you fuse, the score's absolute value stops meaning what your dashboards think it means.</li>
+<li><strong>Never store scores from different scoring regimes in one unlabeled column.</strong> Log a <code>score_kind</code> (or a scale-aware quality label computed at write time) — analysis-time guessing is how you get 3am false incidents.</li>
+<li><strong>The only scale-free failure signal is emptiness.</strong> Zero results means the same thing on every path. When in doubt, count zeros, not thresholds.</li>
+<li><strong>Validate your alarm against a known-good query before believing it.</strong> One exact-match search that "scored 0.04" saved me from paging myself.</li>
+</ol>
+<p>The k=60 default everyone inherits comes from Cormack, Clarke &amp; Buettcher (2009), "Reciprocal Rank Fusion outperforms Condorcet and individual rank learning methods." The trap applies to any RAG stack mixing rerankers with fusion scoring — grep your score column and look for a bimodal cluster around 1/60.</p>
+<p><em>Context: this is Mengram (an AI memory layer); the fix — a scale-aware quality label written alongside every search — is in the public commit history.</em></p>
+""",
+        },
         "schema-lied-production-cascade": {
             "slug": "schema-lied-production-cascade",
             "title": "Our Schema Declared ON DELETE CASCADE. Production Didn't Have It.",
@@ -6342,6 +6915,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         """Shared extraction pipeline used by /v1/add and /v1/add_file."""
         created = []
         try:
+            # ---- Capture boundary: enforced BEFORE extraction/persistence ----
+            # Deterministic, server-side. Empty policy = capture everything.
+            capture_policy = {}
+            try:
+                capture_policy = store.get_capture_policy(user_id)
+            except Exception as e:
+                logger.error(f"⚠️ Capture policy fetch failed: {e}")
+            src = (metadata or {}).get("source")
+            allow_sources = capture_policy.get("allow_sources") or []
+            deny_sources = capture_policy.get("deny_sources") or []
+            if (allow_sources and src not in allow_sources) or (src and src in deny_sources):
+                logger.info(f"🚫 Capture policy: skipped add for user={user_id[:8]} source={src}")
+                if job_id:
+                    store.complete_job(job_id,
+                                       result={"entities": [], "skipped_by_policy": True, "source": src})
+                return created
+            _deny_keywords = store._compile_capture_policy(capture_policy)
+            _policy_dropped = 0
+
             extractor = get_llm()
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -6443,6 +7035,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         else:
                             fact_strings.append(str(f))
 
+                    # Capture boundary: drop facts (and matching knowledge) that
+                    # hit the deny policy — before anything is persisted.
+                    if _deny_keywords:
+                        fact_strings, _dropped_f = store.apply_capture_policy_to_facts(
+                            fact_strings, _deny_keywords)
+                        _policy_dropped += len(_dropped_f)
+                        if entity_knowledge:
+                            kept_k = []
+                            for k in entity_knowledge:
+                                blob = f"{k.get('title', '')} {k.get('content', '')}"
+                                _, kd = store.apply_capture_policy_to_facts([blob], _deny_keywords)
+                                if kd:
+                                    _policy_dropped += 1
+                                else:
+                                    kept_k.append(k)
+                            entity_knowledge = kept_k
+                        # Nothing left worth saving for a brand-new entity → skip it.
+                        if not fact_strings and not entity_knowledge and not entity_relations:
+                            existing_id = store.get_entity_id(user_id, name, sub_user_id=sub_uid)
+                            if not existing_id:
+                                continue
+
                     archived = conflict_results.get(name)
                     if archived:
                         store.fire_webhooks(user_id, "memory_update", {
@@ -6527,6 +7141,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             for ep in all_episodes:
                 if not ep.summary:
                     continue
+                if _deny_keywords:
+                    ep_blob = f"{ep.summary} {ep.context or ''} {ep.outcome or ''}"
+                    _, ep_drop = store.apply_capture_policy_to_facts([ep_blob], _deny_keywords)
+                    if ep_drop:
+                        _policy_dropped += 1
+                        continue
                 try:
                     episode_id = store.save_episode(
                         user_id=user_id,
@@ -6554,6 +7174,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             for pr in all_procedures:
                 if not pr.name or not pr.steps:
                     continue
+                if _deny_keywords:
+                    pr_blob = pr.name + " " + " ".join(
+                        (s.get("action", "") + " " + s.get("detail", "")) if isinstance(s, dict) else str(s)
+                        for s in pr.steps)
+                    _, pr_drop = store.apply_capture_policy_to_facts([pr_blob], _deny_keywords)
+                    if pr_drop:
+                        _policy_dropped += 1
+                        continue
                 try:
                     proc_id = store.save_procedure(
                         user_id=user_id,
@@ -6673,15 +7301,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             store.cache.invalidate(f"search:{user_id}:{sub_uid}")
             store.cache.invalidate(f"searchall:{user_id}:{sub_uid}")
 
+            _policy_note = f", policy_dropped={_policy_dropped}" if _policy_dropped else ""
             logger.info(f"✅ Background add complete for {user_id} "
                        f"(entities={len(created)}, episodes={episodes_created}, "
-                       f"procedures={procedures_created}, linked={episodes_linked})")
+                       f"procedures={procedures_created}, linked={episodes_linked}{_policy_note})")
             store.complete_job(job_id, {
                 "created": created,
                 "count": len(created),
                 "episodes": episodes_created,
                 "procedures": procedures_created,
                 "episodes_linked": episodes_linked,
+                "dropped_by_policy": _policy_dropped,
             })
 
             # ---- Post-completion tasks (fire-and-forget, don't block job) ----
@@ -8061,6 +8691,43 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         count = store.delete_all_entities(user_id, sub_user_id=sub_user_id)
         logger.warning(f"🗑️ DELETE ALL | user={user_id[:8]} | deleted={count} entities")
         return {"status": "deleted", "count": count}
+
+    @app.get("/v1/capture-policy", tags=["System"])
+    async def get_capture_policy(ctx: AuthContext = Depends(auth)):
+        """Get the account's capture boundary — what extraction is allowed to
+        persist. Empty = capture everything (default). Deterministic,
+        server-side: category packs + custom keywords + source rules."""
+        policy = store.get_capture_policy(ctx.user_id)
+        return {
+            "capture_policy": policy,
+            "available_categories": list(store.CAPTURE_CATEGORY_PACKS.keys()),
+        }
+
+    class CapturePolicyRequest(BaseModel):
+        deny_categories: list[str] | None = None   # subset of available_categories
+        deny_keywords: list[str] | None = None      # custom words/phrases to never store
+        deny_sources: list[str] | None = None       # skip adds from these sources
+        allow_sources: list[str] | None = None      # if set, ONLY accept these sources
+
+    @app.put("/v1/capture-policy", tags=["System"])
+    async def set_capture_policy(req: CapturePolicyRequest, ctx: AuthContext = Depends(auth)):
+        """Set the capture boundary. Applied deterministically before any
+        extracted memory is persisted — facts, episodes, and procedures
+        matching a deny rule are dropped, never written. Enforced server-side,
+        not a prompt asking the model to behave."""
+        valid = set(store.CAPTURE_CATEGORY_PACKS.keys())
+        bad = [c for c in (req.deny_categories or []) if c not in valid]
+        if bad:
+            raise HTTPException(status_code=400,
+                                detail=f"Unknown categories: {bad}. Valid: {sorted(valid)}")
+        policy = {k: v for k, v in {
+            "deny_categories": req.deny_categories or [],
+            "deny_keywords": req.deny_keywords or [],
+            "deny_sources": req.deny_sources or [],
+            "allow_sources": req.allow_sources or [],
+        }.items() if v}
+        saved = store.set_capture_policy(ctx.user_id, policy)
+        return {"status": "saved", "capture_policy": saved}
 
     @app.delete("/v1/account", tags=["System"])
     async def delete_account(confirm: str = Query(""), ctx: AuthContext = Depends(auth)):
