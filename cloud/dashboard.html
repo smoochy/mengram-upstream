@@ -1253,6 +1253,26 @@
                 <div id="keys-list" style="margin-top:8px;"></div>
             </div>
             <div class="set-section">
+                <h3>Capture Policy</h3>
+                <p>Control what Mengram is allowed to remember. Rules are enforced <strong>server-side, before anything is stored</strong> — matched facts, events, and workflows are dropped, never written.</p>
+                <div style="margin-top:12px;">
+                    <label style="font-size:13px;color:var(--text-2);display:block;margin-bottom:8px;">Never capture these categories:</label>
+                    <div id="capture-categories" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                </div>
+                <div style="margin-top:16px;">
+                    <label style="font-size:13px;color:var(--text-2);display:block;margin-bottom:6px;">Never capture facts containing these words/phrases (one per line):</label>
+                    <textarea id="capture-keywords" rows="3" placeholder="project omega&#10;my home address&#10;anything private" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;"></textarea>
+                </div>
+                <div style="margin-top:16px;">
+                    <label style="font-size:13px;color:var(--text-2);display:block;margin-bottom:6px;">Only capture from these sources (comma-separated, blank = all):</label>
+                    <input id="capture-allow-sources" type="text" placeholder="claude_code, cursor" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit;font-size:13px;">
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;margin-top:14px;">
+                    <button class="btn-s" onclick="saveCapturePolicy()" id="capture-save-btn">Save policy</button>
+                    <span id="capture-status" style="font-size:13px;color:var(--text-3);"></span>
+                </div>
+            </div>
+            <div class="set-section">
                 <h3>Data</h3>
                 <p>Export or delete all your memory data.</p>
                 <div style="display:flex;gap:10px;">
@@ -1801,7 +1821,7 @@ function switchTabDirect(t) {
     if (t === 'agents') loadAgentHistory();
     if (t === 'procedures') loadProcedures();
     if (t === 'billing') loadBilling();
-    if (t === 'settings') { loadWebhooks(); loadTeams(); loadKeys(); }
+    if (t === 'settings') { loadWebhooks(); loadTeams(); loadKeys(); loadCapturePolicy(); }
 }
 
 function switchGroup(e, group) {
@@ -1980,7 +2000,7 @@ function switchTab(e, t) {
     if(t==='agents') loadAgentHistory();
     if(t==='procedures') loadProcedures();
     if(t==='billing') loadBilling();
-    if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
+    if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); loadCapturePolicy(); }
 }
 
 async function loadAll() { _updateNavHighlighting('graph'); loadStats(); loadGraph(); loadFeed(); loadAccount(); }
@@ -3860,6 +3880,67 @@ async function fetchAllPages(path, key) {
         offset += 500;
     } while (offset < total);
     return items;
+}
+// ---- Capture Policy ----
+let _capturePolicy = {};
+const _captureCatLabels = {
+    health: 'Health', legal: 'Legal', financial: 'Financial',
+    credentials: 'Credentials', location: 'Location', relationships: 'Relationships'
+};
+async function loadCapturePolicy() {
+    const box = document.getElementById('capture-categories');
+    if (!box) return;
+    try {
+        const d = await (await fetch(`${API}/v1/capture-policy`, {headers:H()})).json();
+        _capturePolicy = d.capture_policy || {};
+        const cats = d.available_categories || [];
+        const denied = new Set(_capturePolicy.deny_categories || []);
+        box.innerHTML = cats.map(c => {
+            const on = denied.has(c);
+            return `<button type="button" class="cap-chip" data-cat="${c}" onclick="toggleCaptureCat('${c}')"
+                style="padding:7px 14px;border-radius:20px;cursor:pointer;font-size:13px;font-family:inherit;border:1px solid ${on?'var(--red,#f87171)':'var(--border)'};background:${on?'rgba(248,113,113,0.12)':'transparent'};color:${on?'var(--red,#f87171)':'var(--text-2)'};">
+                ${on?'⊘ ':''}${_captureCatLabels[c]||c}</button>`;
+        }).join('');
+        document.getElementById('capture-keywords').value = (_capturePolicy.deny_keywords || []).join('\n');
+        document.getElementById('capture-allow-sources').value = (_capturePolicy.allow_sources || []).join(', ');
+        const anyOn = denied.size || (_capturePolicy.deny_keywords||[]).length || (_capturePolicy.allow_sources||[]).length;
+        document.getElementById('capture-status').textContent = anyOn ? 'Policy active' : 'Capturing everything (no limits)';
+    } catch(e) { box.innerHTML = '<span style="color:var(--text-3);font-size:13px;">Could not load policy</span>'; }
+}
+function toggleCaptureCat(cat) {
+    const set = new Set(_capturePolicy.deny_categories || []);
+    set.has(cat) ? set.delete(cat) : set.add(cat);
+    _capturePolicy.deny_categories = [...set];
+    // re-render just the chips
+    document.querySelectorAll('.cap-chip').forEach(b => {
+        const on = set.has(b.dataset.cat);
+        b.style.border = `1px solid ${on?'var(--red,#f87171)':'var(--border)'}`;
+        b.style.background = on ? 'rgba(248,113,113,0.12)' : 'transparent';
+        b.style.color = on ? 'var(--red,#f87171)' : 'var(--text-2)';
+        b.innerHTML = (on?'⊘ ':'') + (_captureCatLabels[b.dataset.cat]||b.dataset.cat);
+    });
+}
+async function saveCapturePolicy() {
+    const btn = document.getElementById('capture-save-btn');
+    btn.disabled = true;
+    const keywords = document.getElementById('capture-keywords').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const allow = document.getElementById('capture-allow-sources').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const body = {
+        deny_categories: _capturePolicy.deny_categories || [],
+        deny_keywords: keywords,
+        allow_sources: allow,
+    };
+    try {
+        const r = await fetch(`${API}/v1/capture-policy`, {method:'PUT', headers:H(), body:JSON.stringify(body)});
+        const d = await r.json();
+        if (r.ok) {
+            _capturePolicy = d.capture_policy || {};
+            const anyOn = (body.deny_categories.length||body.deny_keywords.length||body.allow_sources.length);
+            document.getElementById('capture-status').textContent = anyOn ? 'Policy active — saved' : 'Saved — capturing everything';
+            showToast('Capture policy saved', 'success');
+        } else showToast(detailMsg(d.detail, 'Save failed'), 'error');
+    } catch(e) { showToast('Save failed', 'error'); }
+    btn.disabled = false;
 }
 async function exportData() {
     try {
