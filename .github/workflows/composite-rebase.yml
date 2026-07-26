@@ -1,6 +1,11 @@
 name: Composite Branch Rebase
 
 on:
+  # Fired by the central fork-sync job in homelab-private right after it
+  # mirrors upstream onto upstream-sync, so the rebase runs immediately
+  # instead of waiting for the next cron tick.
+  repository_dispatch:
+    types: [upstream-synced]
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:
