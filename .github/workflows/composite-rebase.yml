@@ -125,11 +125,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch smoochy "refs/heads/upstream-sync:refs/remotes/smoochy/upstream-sync"
-          git checkout refs/remotes/smoochy/upstream-sync -- .github/
+          # Restored from smoochy/ci, NOT upstream-sync. upstream-sync is a
+          # pure mirror of alibaizhanov/mengram, which carries no .github/ —
+          # so once the central fork-sync job began resetting it hard onto
+          # upstream, this step restored an empty directory and deleted the
+          # repo's own CI, including this file, in the same run (2026-07-26).
+          # smoochy/ci is touched by no sync, so it survives every upstream
+          # move. Workflow changes belong there and reach main through here.
+          git fetch smoochy "refs/heads/smoochy/ci:refs/remotes/smoochy/ci"
+          git checkout refs/remotes/smoochy/ci -- .github/
           git diff --cached --quiet || \
-            git commit -m "chore(composite): restore .github/ from upstream-sync"
-          echo ".github/ restored from smoochy/upstream-sync"
+            git commit -m "chore(composite): restore .github/ from smoochy/ci"
+          echo ".github/ restored from smoochy/ci"
 
       - name: Detect composite changes
         id: changed
