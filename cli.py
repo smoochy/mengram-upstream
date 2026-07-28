@@ -439,6 +439,63 @@ def cmd_auto_recall(args):
         _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
+def _weekly_state_path():
+    return Path.home() / ".mengram" / "weekly-shown.json"
+
+
+def _iso_week_now():
+    import datetime as _dt
+    y, w, _ = _dt.date.today().isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+def _maybe_weekly_message(mem, user_id):
+    """Once per ISO week, on the first SessionStart, return a compact plain-text
+    weekly report to show the user via systemMessage. Best-effort: any failure
+    (quota, network, no data) silently returns None. Never nags an empty week."""
+    try:
+        week = _iso_week_now()
+        state_path = _weekly_state_path()
+        shown = {}
+        if state_path.exists():
+            try:
+                shown = json.loads(state_path.read_text())
+            except Exception:
+                shown = {}
+        key = user_id or "default"
+        if shown.get(key) == week:
+            return None  # already shown this week
+
+        stats = mem.weekly_stats(user_id=user_id)
+        # Mark shown regardless (so we don't retry every session all week)
+        shown[key] = week
+        try:
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps(shown))
+        except Exception:
+            pass
+
+        facts = stats.get("facts_learned", 0)
+        procs = stats.get("procedures_learned", 0)
+        recalls = stats.get("recalls_served", 0)
+        prevented = stats.get("prevented", [])
+        if not (facts or procs or recalls or prevented):
+            return None  # empty week — don't nag
+
+        lines = ["🧠 Mengram — your AI's memory, past 7 days:"]
+        lines.append(f"   {facts} facts learned · {procs} procedures · {recalls} recalls served")
+        if prevented:
+            lines.append(f"   Repeated mistakes prevented: {len(prevented)}")
+            for p in prevented[:3]:
+                bitten = p.get("last_bitten")
+                tail = f" (last bitten {bitten})" if bitten else ""
+                lines.append(f"     · {(p.get('name') or '?')[:40]}{tail}")
+        lines.append("   Full report: run  mengram weekly --share")
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
     HOOK = "auto-context"
@@ -455,12 +512,15 @@ def cmd_auto_context(args):
         mem = CloudMemory(api_key=api_key, base_url=base_url)
         profile = mem.get_profile(user_id=user_id)
 
+        weekly_msg = None if getattr(args, "no_weekly", False) else _maybe_weekly_message(mem, user_id)
+
         system_prompt = profile.get("system_prompt", "")
         if not system_prompt:
-            _emit_hook_exit(EVENT, args, HOOK, "no profile")
+            _emit_hook_exit(EVENT, args, HOOK, "no profile", system_message=weekly_msg)
 
         context = f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}"
-        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)", context=context)
+        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)",
+                        context=context, system_message=weekly_msg)
 
     except SystemExit:
         raise
@@ -802,7 +862,7 @@ def _hook_marker(hook_name: str, status: str) -> str:
     return f"[mengram:{hook_name}] {status}"
 
 
-def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None):
+def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None, system_message=None):
     """Emit a Claude Code hook JSON response and exit(0).
 
     Non-verbose (default): preserves prior silent behavior — suppressOutput
@@ -834,6 +894,13 @@ def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None):
             }
     elif not context:
         payload["suppressOutput"] = True
+
+    # User-facing message (e.g. the weekly report) — shown to the human, never
+    # added to Claude's context. Appended after any verbose marker.
+    if system_message:
+        prior = payload.get("systemMessage", "")
+        payload["systemMessage"] = (prior + "\n\n" + system_message) if prior else system_message
+        payload.pop("suppressOutput", None)
 
     print(json.dumps(payload))
     sys.exit(0)
@@ -1029,6 +1096,177 @@ def cmd_doctor(args):
     print("OK: round-trip succeeded.")
 
 
+def _render_weekly(stats: dict, week_label: str, color: bool = True) -> str:
+    """Render the weekly memory report box (<=58 cols, screenshot-friendly).
+
+    Spec: ccusage-style box-drawing, no emoji inside boxes, hero block =
+    repeated mistakes prevented with 'last bitten' dates.
+    """
+    W = 58
+    BLUE = "\033[34m" if color else ""
+    YELLOW = "\033[1;33m" if color else ""
+    GREEN = "\033[32m" if color else ""
+    DIM = "\033[2m" if color else ""
+    R = "\033[0m" if color else ""
+
+    def pad(s: str, n: int) -> str:
+        return s + " " * max(0, n - len(s))
+
+    lines = []
+    title = f"MENGRAM · Your AI's memory — {week_label}"
+    lines.append("╭" + "─" * (W - 2) + "╮")
+    lines.append("│" + " " * (W - 2) + "│")
+    lines.append("│   " + BLUE + pad(title, W - 8) + R + "   │")
+    lines.append("│" + " " * (W - 2) + "│")
+    lines.append("╰" + "─" * (W - 2) + "╯")
+    lines.append("")
+
+    facts = stats.get("facts_learned", 0)
+    prev = stats.get("facts_prev_week", 0)
+    delta = facts - prev
+    delta_s = (GREEN + f"▲ {delta}" + R) if delta > 0 else (DIM + f"▼ {abs(delta)}" + R) if delta < 0 else (DIM + "=" + R)
+    lines.append(f"  Facts learned        {facts:>5}    {delta_s} vs last week")
+
+    procs = stats.get("procedures_learned", 0)
+    bump = stats.get("latest_version_bump")
+    bump_s = ""
+    if bump:
+        v = bump.get("version", 1)
+        bump_s = f"{bump.get('name', '')[:24]} v{v - 1} → v{v}"
+    lines.append(f"  Procedures learned   {procs:>5}    " + DIM + bump_s + R)
+
+    recalls = stats.get("recalls_served", 0)
+    lines.append(f"  Recalls served       {recalls:>5}")
+    lines.append("")
+
+    prevented = stats.get("prevented", [])
+    n = len(prevented)
+    lines.append("┌" + "─" * (W - 2) + "┐")
+    header = pad("  REPEATED MISTAKES PREVENTED", W - 12) + f"{n:>4}"
+    lines.append("│" + YELLOW + pad(header, W - 2) + R + "│")
+    if prevented:
+        lines.append("│" + " " * (W - 2) + "│")
+        for p in prevented:
+            name = (p.get("name") or "?")[:28]
+            bitten = p.get("last_bitten")
+            if bitten:
+                try:
+                    import datetime as _dt
+                    bitten = _dt.date.fromisoformat(bitten).strftime("%b %d")
+                except (ValueError, TypeError):
+                    pass
+                tail = f"last bitten: {bitten}"
+            else:
+                tail = f"{p.get('fail_count', 0)} past failures"
+            row = f"  · {pad(name, 28)} {tail}"
+            lines.append("│" + pad(row, W - 2)[: W - 2] + "│")
+    else:
+        lines.append("│" + pad("  0 — clean week", W - 2) + "│")
+    lines.append("└" + "─" * (W - 2) + "┘")
+    lines.append("")
+    lines.append(DIM + "  Share it: mengram weekly --share" + R)
+    return "\n".join(lines)
+
+
+def cmd_weekly(args):
+    """Print the weekly memory report."""
+    import datetime as _dt
+
+    api_key = _load_cloud_api_key()
+    if not api_key:
+        print("No API key. Run `mengram setup` first.", file=sys.stderr)
+        sys.exit(1)
+    from cloud.client import CloudMemory
+    mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+    user_id = getattr(args, "user_id", None) or "default"
+    stats = mem.weekly_stats(user_id=user_id)
+
+    today = _dt.date.today()
+    start = today - _dt.timedelta(days=6)
+    week_label = f"week of {start.strftime('%b %d')}–{today.strftime('%d')}"
+    color = sys.stdout.isatty() and not getattr(args, "no_color", False)
+    print(_render_weekly(stats, week_label, color=color))
+
+    if getattr(args, "share", False):
+        n = len(stats.get("prevented", []))
+        facts = stats.get("facts_learned", 0)
+        recalls = stats.get("recalls_served", 0)
+        post = (f"My AI stopped me from repeating {n} old mistake{'s' if n != 1 else ''} this week. "
+                f"{facts} facts, {recalls} recalls. It remembers what I don't. 🧠 mengram.io")
+        print("\n--- ready to post ---\n" + post)
+        try:
+            import subprocess
+            subprocess.run(["pbcopy"], input=post.encode(), check=True)
+            print("(copied to clipboard)")
+        except Exception:
+            pass
+
+
+def _ask_yes(prompt: str, default: bool = True) -> bool:
+    """input() with a default that survives non-interactive runs (agents, pipes)."""
+    suffix = " [Y/n]: " if default else " [y/N]: "
+    try:
+        if not sys.stdin.isatty():
+            return default
+        answer = input(prompt + suffix).strip().lower()
+    except EOFError:
+        return default
+    if not answer:
+        return default
+    return answer in ("y", "yes")
+
+
+def _mcp_server_entry(api_key: str) -> dict:
+    """Canonical MCP config entry — same shape as the landing docs."""
+    mengram_bin = shutil.which("mengram") or "mengram"
+    return {
+        "command": mengram_bin,
+        "args": ["server", "--cloud"],
+        "env": {
+            "MENGRAM_API_KEY": api_key,
+            "MENGRAM_URL": _load_cloud_base_url(),
+        },
+    }
+
+
+def _write_mcp_config(config_path: Path, entry: dict) -> str:
+    """Merge mengram into an MCP config file. Returns: written | already | corrupt."""
+    config = {}
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return "corrupt"  # never clobber a file we can't parse
+    servers = config.setdefault("mcpServers", {})
+    if "mengram" in servers:
+        return "already"
+    if config_path.exists():
+        try:
+            shutil.copy2(config_path, str(config_path) + ".bak-mengram")
+        except OSError:
+            pass
+    servers["mengram"] = entry
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+    return "written"
+
+
+def _detect_mcp_tools() -> list:
+    """Detect installed AI tools that take an MCP config. Returns [(name, config_path)]."""
+    tools = []
+    if (Path.home() / ".cursor").exists():
+        tools.append(("Cursor", Path.home() / ".cursor" / "mcp.json"))
+    claude_desktop = get_claude_desktop_config_path()
+    if claude_desktop.parent.exists():
+        tools.append(("Claude Desktop", claude_desktop))
+    windsurf_dir = Path.home() / ".codeium" / "windsurf"
+    if windsurf_dir.exists():
+        tools.append(("Windsurf", windsurf_dir / "mcp_config.json"))
+    return tools
+
+
 def cmd_setup(args):
     """Interactive signup + API key setup + hook install."""
     print("\n  Welcome to Mengram — AI memory for your apps\n")
@@ -1124,13 +1362,71 @@ def cmd_setup(args):
     no_hooks = getattr(args, "no_hooks", False)
     if not no_hooks:
         try:
+            os.environ["MENGRAM_API_KEY"] = api_key  # hook install reads env
             cmd_hook_install(args)
         except SystemExit:
             pass
     else:
         print("\n  Skipped hook install (--no-hooks).")
 
-    print("\n  Done! Restart Claude Code — it now remembers everything.\n")
+    configured = []
+
+    # Detect other AI tools and wire up MCP configs (Cursor, Claude Desktop, Windsurf)
+    if not getattr(args, "no_tools", False):
+        tools = _detect_mcp_tools()
+        if tools:
+            names = ", ".join(t[0] for t in tools)
+            print(f"\n  Detected: {names}")
+            if _ask_yes("  Connect Mengram memory to them too?"):
+                entry = _mcp_server_entry(api_key)
+                for name, path in tools:
+                    result = _write_mcp_config(path, entry)
+                    if result == "written":
+                        configured.append(name)
+                        print(f"  ✓ {name}: {path}")
+                    elif result == "already":
+                        print(f"  ✓ {name}: already configured")
+                    else:
+                        print(f"  ! {name}: could not parse {path} — skipped (add manually, see mengram.io/#install)")
+
+    # Warm start: import existing Claude Code history so memory is useful from minute one
+    imported = False
+    if not getattr(args, "no_import", False):
+        projects_dir = Path.home() / ".claude" / "projects"
+        if projects_dir.exists() and any(projects_dir.iterdir()):
+            print("\n  Found local Claude Code session history.")
+            if _ask_yes("  Import your recent sessions so memory starts warm?"):
+                import_args = argparse.Namespace(
+                    import_type="claude-code", last=20, project="",
+                    reimport=False, yes=True, user_id=None,
+                )
+                try:
+                    cmd_import(import_args)
+                    imported = True
+                except SystemExit:
+                    pass
+                except Exception as e:
+                    print(f"  Import skipped ({e}) — run `mengram import claude-code` later.")
+
+    # Verify the round-trip end-to-end
+    if not getattr(args, "no_verify", False):
+        print("\n  Verifying round-trip ...")
+        mengram_bin = shutil.which("mengram")
+        if mengram_bin:
+            import subprocess
+            try:
+                r = subprocess.run([mengram_bin, "doctor"], capture_output=True, text=True, timeout=90)
+                tail = (r.stdout.strip().splitlines() or [""])[-1]
+                print(f"  {tail}" if tail.startswith("OK") else "  Verify inconclusive — run `mengram doctor` for details.")
+            except Exception:
+                print("  Verify skipped — run `mengram doctor` later.")
+
+    print("\n  Done! Restart Claude Code" + (
+        " (and " + ", ".join(configured) + ")" if configured else ""
+    ) + " — it now remembers everything.")
+    if imported:
+        print('  Try asking: "What do you know about my projects?"')
+    print()
 
 
 def cmd_hook_install(args):
@@ -1686,6 +1982,8 @@ def main():
     p_autocontext.add_argument("--user-id", default=None)
     p_autocontext.add_argument("--verbose", action="store_true",
                                 help="Emit a status marker for each hook invocation")
+    p_autocontext.add_argument("--no-weekly", action="store_true",
+                                help="Suppress the once-a-week memory report")
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
@@ -1694,10 +1992,18 @@ def main():
     p_web.add_argument("--no-open", action="store_true", help="Don't open browser")
 
     # setup (interactive signup + hook install)
+    p_weekly = sub.add_parser("weekly", help="Weekly memory report (facts, procedures, prevented repeats)")
+    p_weekly.add_argument("--share", action="store_true", help="Also print + copy a ready-to-post summary")
+    p_weekly.add_argument("--no-color", action="store_true", help="Plain output (for piping)")
+    p_weekly.add_argument("--user-id", default=None, dest="user_id")
+
     p_setup = sub.add_parser("setup", help="Sign up and configure Mengram (interactive)")
     p_setup.add_argument("--email", help="Email (skip prompt)")
     p_setup.add_argument("--key", help="API key (skip signup, just save key + install hooks)")
     p_setup.add_argument("--no-hooks", action="store_true", help="Skip Claude Code hook install")
+    p_setup.add_argument("--no-tools", action="store_true", help="Skip Cursor/Claude Desktop/Windsurf MCP config")
+    p_setup.add_argument("--no-import", action="store_true", help="Skip Claude Code history import")
+    p_setup.add_argument("--no-verify", action="store_true", help="Skip round-trip verification")
 
     # signup (non-interactive — designed for agent-driven installs)
     p_signup = sub.add_parser(
@@ -1742,6 +2048,8 @@ def main():
         cmd_auto_context(args)
     elif args.command == "web":
         cmd_web(args)
+    elif args.command == "weekly":
+        cmd_weekly(args)
     elif args.command == "setup":
         cmd_setup(args)
     elif args.command == "signup":

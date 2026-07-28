@@ -71,7 +71,12 @@ try:
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("mengram-ai")
 except Exception:
-    __version__ = "2.23.0"  # fallback for dev/docker
+    try:
+        import re as _vre
+        _pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+        __version__ = _vre.search(r'^version = "([^"]+)"', _pyproject, _vre.M).group(1)
+    except Exception:
+        __version__ = "unknown"
 
 # ---- Config ----
 
@@ -4295,7 +4300,7 @@ session = client.beta.sessions.create(
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>search_all</code></td><td style="padding:10px;">Unified search across all 3 memory types</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>context_for</code></td><td style="padding:10px;">Get relevant context pack for a specific task</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>list_procedures</code></td><td style="padding:10px;">Retrieve learned workflows with success/failure tracking</td></tr>
-<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>procedure_feedback</code></td><td style="padding:10px;">Report outcomes — procedures evolve automatically on failure</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>procedure_feedback</code></td><td style="padding:10px;">Report outcomes — on <code>success=false</code> with a <code>context</code>, the procedure evolves into a revised version (cloud backend)</td></tr>
 <tr><td style="padding:10px;"><code>reflect</code></td><td style="padding:10px;">Trigger AI reflection to find patterns across memories</td></tr>
 </tbody>
 </table>
@@ -8767,6 +8772,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         """Usage statistics."""
         user_id = ctx.user_id
         return store.get_stats(user_id, sub_user_id=sub_user_id)
+
+    @app.get("/v1/stats/weekly", tags=["System"])
+    async def stats_weekly(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Weekly memory report: facts/procedures learned, recalls served,
+        repeated-mistake preventions."""
+        return store.weekly_stats(ctx.user_id, sub_user_id=sub_user_id)
 
     @app.get("/v1/intelligence", tags=["System"])
     async def intelligence(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
