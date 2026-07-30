@@ -21,13 +21,20 @@ jobs:
   rebase:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Checkout upstream main
         uses: actions/checkout@v4
         with:
           repository: alibaizhanov/mengram
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.SYNC_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git identity
         shell: bash
@@ -39,7 +46,7 @@ jobs:
       - name: Add smoochy fork remote
         shell: bash
         env:
-          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+          SYNC_PAT: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           git remote add smoochy "https://x-access-token:${SYNC_PAT}@github.com/smoochy/mengram-upstream.git"
@@ -48,7 +55,7 @@ jobs:
         id: prs
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           prs_json=$(gh api repos/alibaizhanov/mengram/pulls \
@@ -165,7 +172,7 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         shell: bash
         env:
-          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+          SYNC_PAT: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           git push --force \
@@ -177,7 +184,7 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         shell: bash
         env:
-          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+          SYNC_PAT: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           curl --fail -X POST \
