@@ -86,6 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           prs_json="$(cat "$RUNNER_TEMP/prs.json")"
+          : > "$RUNNER_TEMP/skipped.txt"
 
           if [ "$(echo "$prs_json" | jq 'length')" -eq 0 ]; then
             echo "No open smoochy PRs — composite will equal upstream/main"
@@ -114,17 +115,27 @@ jobs:
             done < <(echo "$prs_json" | jq -r '.[] | [.number, .sha, .ref] | @tsv')
 
             # Sort selected by PR number ascending for merge order
-            mapfile -t sorted_refs < <(
+            mapfile -t sorted_pairs < <(
               for i in "${!selected_numbers[@]}"; do
                 echo "${selected_numbers[$i]} ${selected_refs[$i]}"
-              done | sort -n | awk '{print $2}'
+              done | sort -n
             )
 
-            # Merge each selected branch
-            for ref in "${sorted_refs[@]:-}"; do
+            # Merge each selected branch. A branch that no longer merges cleanly
+            # is skipped rather than fatal: one stale PR must not cost every
+            # other open PR its place in the composite. The skip is reported as
+            # a job warning and in the run summary, so it stays visible.
+            for pair in "${sorted_pairs[@]:-}"; do
+              [ -n "$pair" ] || continue
+              number="${pair%% *}"
+              ref="${pair#* }"
               echo "Merging smoochy/${ref}"
-              git merge --no-ff "refs/remotes/smoochy/${ref}" \
-                -m "chore(composite): merge smoochy/${ref}"
+              if ! git merge --no-ff "refs/remotes/smoochy/${ref}" \
+                   -m "chore(composite): merge smoochy/${ref}"; then
+                git merge --abort
+                echo "::warning::PR #${number} (${ref}) conflicts with the composite - skipped"
+                echo "${number} ${ref}" >> "$RUNNER_TEMP/skipped.txt"
+              fi
             done
           fi
 
@@ -204,4 +215,10 @@ jobs:
             printf -- '- target branch: `smoochy/mengram-upstream:main`\n'
             printf -- '- composite changed: `%s` (push + build skipped when `false`)\n' \
               "${{ steps.changed.outputs.changed }}"
+            if [ -s "$RUNNER_TEMP/skipped.txt" ]; then
+              printf -- '\n**Skipped - conflicts with the composite:**\n\n'
+              while read -r number ref; do
+                printf -- '- #%s `%s`\n' "$number" "$ref"
+              done < "$RUNNER_TEMP/skipped.txt"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
