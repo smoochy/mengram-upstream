@@ -10,20 +10,12 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@v2
-        id: app-token
-        with:
-          app-id: ${{ secrets.AUTOMATION_APP_ID }}
-          private-key: ${{ secrets.AUTOMATION_APP_KEY }}
-          owner: ${{ github.repository_owner }}
-
       - name: Checkout smoochy/features
         uses: actions/checkout@v4
         with:
           repository: smoochy/mengram-upstream
           ref: smoochy/features
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git identity
         shell: bash
@@ -48,13 +40,9 @@ jobs:
 
       - name: Force-push smoochy/features
         shell: bash
-        env:
-          SYNC_PAT: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
-          git push --force \
-            "https://x-access-token:${SYNC_PAT}@github.com/smoochy/mengram-upstream.git" \
-            "HEAD:refs/heads/smoochy/features"
+          git push --force origin "HEAD:refs/heads/smoochy/features"
           echo "smoochy/features updated"
 
       - name: Write summary
