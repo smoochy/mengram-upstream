@@ -28,22 +28,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main
+          git fetch origin "+refs/heads/main:refs/remotes/origin/main"
           echo "composite HEAD: $(git rev-parse origin/main)"
 
-      - name: Rebase features onto composite
+      - name: Refuse when features carries commits the composite does not
         shell: bash
         run: |
           set -euo pipefail
-          git rebase origin/main
-          echo "Rebase succeeded"
+          # main is rebuilt from scratch by homelab-private's mengram-composite-rebase:
+          # upstream main plus every open smoochy PR, merged in a fresh order and force-pushed.
+          # The merge base therefore changes shape between runs instead of advancing, so a rebase
+          # replays commits onto a base it has never seen and conflicts on content that is already
+          # there. Resetting sidesteps that entirely, at the price of anything on smoochy/features
+          # that has not reached the composite through an open PR yet. That work is what this guard
+          # protects: tag it so it stays reachable, then fail, so a human reconciles it deliberately
+          # instead of the run discarding it.
+          ahead="$(git rev-list --count origin/main..HEAD)"
+          echo "commits on smoochy/features not in the composite: ${ahead}"
+          if [ "$ahead" -ne 0 ]; then
+            tag="features-pre-reset-$(date -u +%Y%m%dT%H%M%SZ)"
+            git tag "$tag" HEAD
+            git push origin "refs/tags/${tag}"
+            git log --oneline origin/main..HEAD
+            echo "::error::smoochy/features has ${ahead} commit(s) the composite does not carry. Tagged ${tag} and refused the reset. Open a PR for that work, let the composite rebuild, then dispatch again."
+            exit 1
+          fi
 
-      - name: Force-push smoochy/features
+      - name: Reset smoochy/features onto the composite
         shell: bash
         run: |
           set -euo pipefail
-          git push --force origin "HEAD:refs/heads/smoochy/features"
-          echo "smoochy/features updated"
+          git reset --hard origin/main
+          git push --force-with-lease origin "HEAD:refs/heads/smoochy/features"
+          echo "smoochy/features reset onto composite $(git rev-parse origin/main)"
 
       - name: Write summary
         if: always()
@@ -51,5 +68,5 @@ jobs:
         run: |
           {
             printf '### Sync features onto composite\n\n'
-            printf -- '- rebased: `smoochy/features` → `main`\n'
+            printf -- '- reset: `smoochy/features` onto `main`\n'
           } >> "$GITHUB_STEP_SUMMARY"
