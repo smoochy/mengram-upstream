@@ -43,16 +43,24 @@ jobs:
           # that has not reached the composite through an open PR yet. That work is what this guard
           # protects: tag it so it stays reachable, then fail, so a human reconciles it deliberately
           # instead of the run discarding it.
-          ahead="$(git rev-list --count origin/main..HEAD)"
-          echo "commits on smoochy/features not in the composite: ${ahead}"
-          if [ "$ahead" -ne 0 ]; then
+          # Counting commits ahead of origin/main does not answer that question. Because the
+          # composite is force-pushed as a fresh history, the previous composite state the branch
+          # still points at reads as "ahead" the moment main is rebuilt, with no human involved -
+          # the same trap the rebase fell into. What separates real work is the author: every
+          # commit the composite contributes is github-actions[bot], so anything else ahead of
+          # main was written by hand.
+          own="$(git log --no-merges --format='%h %ae %s' origin/main..HEAD \
+                 | grep -v ' github-actions\[bot\]@users\.noreply\.github\.com ' || true)"
+          if [ -n "$own" ]; then
+            ahead="$(printf '%s\n' "$own" | wc -l)"
             tag="features-pre-reset-$(date -u +%Y%m%dT%H%M%SZ)"
             git tag "$tag" HEAD
             git push origin "refs/tags/${tag}"
-            git log --oneline origin/main..HEAD
-            echo "::error::smoochy/features has ${ahead} commit(s) the composite does not carry. Tagged ${tag} and refused the reset. Open a PR for that work, let the composite rebuild, then dispatch again."
+            printf '%s\n' "$own"
+            echo "::error::smoochy/features has ${ahead} hand-written commit(s) the composite does not carry. Tagged ${tag} and refused the reset. Open a PR for that work, let the composite rebuild, then dispatch again."
             exit 1
           fi
+          echo "no hand-written commits ahead of the composite - safe to reset"
 
       - name: Reset smoochy/features onto the composite
         shell: bash
