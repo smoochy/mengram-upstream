@@ -54,7 +54,7 @@ all = [
     "anthropic>=0.40",
     "openai>=1.0",
     "sentence-transformers>=2.2",
-    "mcp==1.28.1",
+    "mcp==2.3.0",
     "fastapi>=0.100",
     "uvicorn>=0.20",
     "langchain-core>=0.2",
