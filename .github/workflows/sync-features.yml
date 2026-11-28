@@ -1,0 +1,80 @@
+name: Sync features onto composite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout smoochy/features
+        uses: actions/checkout@v4
+        with:
+          repository: smoochy/mengram-upstream
+          ref: smoochy/features
+          fetch-depth: 0
+
+      - name: Configure git identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "+refs/heads/main:refs/remotes/origin/main"
+          echo "composite HEAD: $(git rev-parse origin/main)"
+
+      - name: Refuse when features carries commits the composite does not
+        shell: bash
+        run: |
+          set -euo pipefail
+          # main is rebuilt from scratch by homelab-private's mengram-composite-rebase:
+          # upstream main plus every open smoochy PR, merged in a fresh order and force-pushed.
+          # The merge base therefore changes shape between runs instead of advancing, so a rebase
+          # replays commits onto a base it has never seen and conflicts on content that is already
+          # there. Resetting sidesteps that entirely, at the price of anything on smoochy/features
+          # that has not reached the composite through an open PR yet. That work is what this guard
+          # protects: tag it so it stays reachable, then fail, so a human reconciles it deliberately
+          # instead of the run discarding it.
+          # Counting commits ahead of origin/main does not answer that question. Because the
+          # composite is force-pushed as a fresh history, the previous composite state the branch
+          # still points at reads as "ahead" the moment main is rebuilt, with no human involved -
+          # the same trap the rebase fell into. What separates real work is the author: every
+          # commit the composite contributes is github-actions[bot], so anything else ahead of
+          # main was written by hand.
+          own="$(git log --no-merges --format='%h %ae %s' origin/main..HEAD \
+                 | grep -v ' github-actions\[bot\]@users\.noreply\.github\.com ' || true)"
+          if [ -n "$own" ]; then
+            ahead="$(printf '%s\n' "$own" | wc -l)"
+            tag="features-pre-reset-$(date -u +%Y%m%dT%H%M%SZ)"
+            git tag "$tag" HEAD
+            git push origin "refs/tags/${tag}"
+            printf '%s\n' "$own"
+            echo "::error::smoochy/features has ${ahead} hand-written commit(s) the composite does not carry. Tagged ${tag} and refused the reset. Open a PR for that work, let the composite rebuild, then dispatch again."
+            exit 1
+          fi
+          echo "no hand-written commits ahead of the composite - safe to reset"
+
+      - name: Reset smoochy/features onto the composite
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard origin/main
+          git push --force-with-lease origin "HEAD:refs/heads/smoochy/features"
+          echo "smoochy/features reset onto composite $(git rev-parse origin/main)"
+
+      - name: Write summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            printf '### Sync features onto composite\n\n'
+            printf -- '- reset: `smoochy/features` onto `main`\n'
+          } >> "$GITHUB_STEP_SUMMARY"
